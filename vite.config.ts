@@ -34,12 +34,36 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // El PDF (@react-pdf/renderer + su documento) se carga con import()
+        // dinámico solo al exportar, para no inflar el bundle inicial. Si
+        // ese chunk lleva un hash de contenido, cada redeploy le cambia el
+        // nombre de archivo y lo borra del servidor — una pestaña abierta
+        // desde antes del redeploy pide el archivo viejo, Netlify no lo
+        // encuentra y el catch-all de _redirects devuelve index.html (200)
+        // en su lugar, que falla al parsear como JS. Con nombre fijo, ese
+        // archivo siempre existe después de cualquier deploy.
+        chunkFileNames: (chunkInfo) => {
+          const stableChunks = ['react-pdf.browser', 'VulneraCheckReportDocument']
+          if (stableChunks.some((name) => chunkInfo.name.includes(name))) {
+            return `assets/${chunkInfo.name}.js`
+          }
+          return 'assets/[name]-[hash].js'
+        },
+      },
     },
   },
 })
