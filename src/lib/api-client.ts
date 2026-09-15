@@ -72,3 +72,70 @@ export async function submitAssessmentToResearchStore(
     // sin conexión o función no disponible — no interrumpe el flujo del participante
   }
 }
+
+/**
+ * Integración opcional con la plataforma SaaS (vulneracheck-platform).
+ * Solo se activa si VITE_PLATFORM_URL está configurada en el build — en
+ * caso contrario la PWA sigue funcionando 100% standalone (comportamiento
+ * actual, sin cambios). Ver netlify/functions y vulneracheck-platform/src
+ * /app/api/public/tokens para el contrato de estos endpoints.
+ */
+const PLATFORM_URL = (import.meta.env.VITE_PLATFORM_URL as string | undefined)?.replace(/\/$/, '')
+
+export interface TokenValidation {
+  /** true si se pudo consultar la plataforma (aunque el token no sea válido) */
+  checked: boolean
+  valid: boolean
+  reason?: string
+}
+
+/**
+ * Valida un token de campaña contra la plataforma antes de arrancar el
+ * test. Si la plataforma no está configurada o no responde, no bloquea:
+ * se asume válido para no romper el uso standalone de la PWA.
+ */
+export async function validatePlatformToken(tokenId: string): Promise<TokenValidation> {
+  if (!PLATFORM_URL) return { checked: false, valid: true }
+  try {
+    const res = await fetch(`${PLATFORM_URL}/api/public/tokens/${encodeURIComponent(tokenId)}`)
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) return { checked: true, valid: Boolean(data.valid) }
+    return { checked: true, valid: false, reason: data.reason }
+  } catch {
+    return { checked: false, valid: true }
+  }
+}
+
+const RISK_TIER_TO_PLATFORM: Record<AssessmentResult['riskTier'], string> = {
+  bajo: 'BAJO',
+  moderado: 'MODERADO',
+  alto: 'ALTO',
+  critico: 'CRITICO',
+}
+
+/**
+ * Reporta el resultado completado a la plataforma (para que el analista lo
+ * vea en /dashboard/campaigns/[id]) además de al researchStore. Silencioso
+ * ante fallos, igual que submitAssessmentToResearchStore.
+ */
+export async function submitAssessmentToPlatform(
+  session: AssessmentSession,
+  result: AssessmentResult,
+): Promise<void> {
+  if (!PLATFORM_URL) return
+  try {
+    await fetch(`${PLATFORM_URL}/api/public/tokens/${encodeURIComponent(session.tokenId)}/submit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        totalScore: result.totalScore,
+        riskTier: RISK_TIER_TO_PLATFORM[result.riskTier],
+        nivel1Score: result.nivel1.compositeScore,
+        nivel2SimulatedScore: result.nivel2SimulatedScore,
+        factorScores: result.nivel1.factors,
+      }),
+    })
+  } catch {
+    // no interrumpe el flujo del participante
+  }
+}

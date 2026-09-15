@@ -11,6 +11,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useAssessmentStore } from '@/store/assessment-store'
+import { validatePlatformToken } from '@/lib/api-client'
 
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -20,11 +21,28 @@ export function OnboardingPage() {
   const [token, setToken] = useState(searchParams.get('token') ?? '')
   const [consentOpen, setConsentOpen] = useState(false)
   const [accepted, setAccepted] = useState(false)
+  const [tokenError, setTokenError] = useState<string | null>(null)
+  const [isValidating, setIsValidating] = useState(false)
 
-  const canStart = token.trim().length > 0 && accepted
+  const canStart = token.trim().length > 0 && accepted && !isValidating
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!canStart) return
+    setTokenError(null)
+    setIsValidating(true)
+    const validation = await validatePlatformToken(token.trim())
+    setIsValidating(false)
+
+    if (validation.checked && !validation.valid) {
+      const messages: Record<string, string> = {
+        not_found: 'No encontramos ese código de participación.',
+        expired: 'Este código venció. Pedí uno nuevo.',
+        already_completed: 'Este código ya fue usado para completar una evaluación.',
+      }
+      setTokenError(messages[validation.reason ?? ''] ?? 'Código inválido.')
+      return
+    }
+
     startSession(token.trim())
     navigate('/eval')
   }
@@ -68,6 +86,7 @@ export function OnboardingPage() {
         <p className="text-xs text-muted-foreground">
           Este código vincula tu sesión de forma anónima con el estudio de tesis.
         </p>
+        {tokenError && <p className="text-xs text-destructive">{tokenError}</p>}
       </div>
 
       <button
@@ -91,7 +110,7 @@ export function OnboardingPage() {
       </button>
 
       <Button size="lg" disabled={!canStart} onClick={handleStart}>
-        Comenzar evaluación
+        {isValidating ? 'Verificando código…' : 'Comenzar evaluación'}
       </Button>
 
       <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
