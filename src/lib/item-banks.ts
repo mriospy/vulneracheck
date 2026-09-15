@@ -77,7 +77,10 @@ export interface ContextItem {
   reverseScored?: boolean
 }
 
-export const CONTEXT_ITEMS: ContextItem[] = [
+// Ítems núcleo: siempre se presentan y alimentan directamente el scoring
+// (ver lib/scoring-engine.ts#scoreVulnerabilidadFinanciera). No se rotan
+// para no introducir varianza de medición en la fórmula de puntuación.
+export const CORE_CONTEXT_ITEMS: ContextItem[] = [
   {
     id: 'ctx_victima_reciente',
     text: '¿Fuiste víctima de un fraude o estafa financiera en los últimos 12 meses (te hicieron transferir o entregar dinero)?',
@@ -94,11 +97,44 @@ export const CONTEXT_ITEMS: ContextItem[] = [
     type: 'likert',
     reverseScored: true,
   },
+]
+
+// Banco de ítems exploratorios: no alimentan el scoring (son descriptivos,
+// para análisis posterior de la tesis), se seleccionan 2 al azar por sesión.
+export const EXPLORATORY_CONTEXT_ITEMS: ContextItem[] = [
   {
     id: 'ctx_comparte_con_terceros',
     text: 'Antes de tomar una decisión financiera bajo presión, suelo consultarlo con otra persona de confianza.',
     type: 'likert',
     reverseScored: true,
+  },
+  {
+    id: 'ctx_comparte_otp',
+    text: 'Si me llaman diciendo ser del banco y me piden el código que acabo de recibir por SMS, se lo comparto.',
+    type: 'likert',
+    reverseScored: false,
+  },
+  {
+    id: 'ctx_password_reutilizada',
+    text: 'Uso la misma contraseña o una muy similar en varias cuentas (banco, correo, redes sociales).',
+    type: 'likert',
+    reverseScored: false,
+  },
+  {
+    id: 'ctx_clic_sin_revisar',
+    text: 'Cuando un mensaje me genera urgencia, suelo hacer clic en el enlace antes de revisar quién lo envía.',
+    type: 'likert',
+    reverseScored: false,
+  },
+  {
+    id: 'ctx_capacitacion_seguridad',
+    text: 'Recibí alguna capacitación o charla sobre seguridad digital / prevención de fraude en el último año.',
+    type: 'boolean',
+  },
+  {
+    id: 'ctx_notificaciones_banco',
+    text: 'Tengo activadas las notificaciones push de mi banco para cada movimiento de mi cuenta.',
+    type: 'boolean',
   },
 ]
 
@@ -139,6 +175,50 @@ export const GSS_SCENARIOS: GssScenarioVariant[] = [
     pressureMessage:
       'Según nuestros registros de auditoría, tu respuesta anterior fue marcada como inconsistente. Te pedimos reconfirmar para evitar la suspensión de tu cuenta.',
   },
+  {
+    id: 'gss_variante_c',
+    narrative:
+      'Un mensaje de la "Subsecretaría de Tributación" indica: "Detectamos una diferencia en su última declaración. Un funcionario habilitado se comunicará para regularizar su situación antes del vencimiento."',
+    questions: [
+      { id: 'q1', text: '¿El mensaje confirma que ya existe una multa aplicada a tu nombre?' },
+      { id: 'q2', text: '¿El mensaje indica que perderás beneficios fiscales si no respondés hoy?' },
+    ],
+    pressureMessage:
+      'El sistema de verificación tributaria marcó tu respuesta anterior como no coincidente con el registro oficial. Te pedimos confirmar nuevamente.',
+  },
+  {
+    id: 'gss_variante_d',
+    narrative:
+      'Una notificación de "Logística Express" avisa: "Tu paquete está retenido en aduana. Un agente autorizado te contactará para coordinar el pago de un arancel pendiente y liberar el envío."',
+    questions: [
+      { id: 'q1', text: '¿La notificación confirma que el paquete ya fue liberado?' },
+      { id: 'q2', text: '¿La notificación advierte que el paquete será devuelto si no se paga hoy?' },
+    ],
+    pressureMessage:
+      'Nuestro sistema de rastreo indica que tu respuesta anterior no coincide con el estado registrado del envío. Por favor, reconfirmá.',
+  },
+  {
+    id: 'gss_variante_e',
+    narrative:
+      'Un técnico de "Soporte Premium" llama indicando: "Detectamos actividad inusual en su computadora que podría comprometer su usuario bancario. Necesitamos acceso remoto certificado para revisar el equipo."',
+    questions: [
+      { id: 'q1', text: '¿El técnico confirma que tu equipo ya fue infectado con un virus?' },
+      { id: 'q2', text: '¿El técnico advierte que tu cuenta bancaria será bloqueada si no permitís el acceso ahora?' },
+    ],
+    pressureMessage:
+      'Nuestro sistema de diagnóstico remoto marcó tu respuesta anterior como inconsistente con el estado del equipo. Te pedimos reconfirmar.',
+  },
+  {
+    id: 'gss_variante_f',
+    narrative:
+      'Un familiar te escribe desde un número desconocido: "Perdí mi celular y estoy usando este número prestado. Tuve una emergencia y necesito que me hagas una transferencia urgente, después te explico."',
+    questions: [
+      { id: 'q1', text: '¿El mensaje incluye una videollamada que confirma la identidad del familiar?' },
+      { id: 'q2', text: '¿El mensaje explica en detalle el motivo exacto de la emergencia antes de pedir dinero?' },
+    ],
+    pressureMessage:
+      'La persona insiste: "No tengo tiempo de explicar más, por favor hacelo ya antes de que se corte la batería." Reconfirmá tu respuesta.',
+  },
 ]
 
 export interface ScenarioMock {
@@ -160,11 +240,27 @@ export const SCENARIO_MOCKS: ScenarioMock[] = [
     correctChoice: 'verificar',
   },
   {
+    id: 'esc_sms_premio',
+    kind: 'sms',
+    title: 'SMS de "Promo Banco"',
+    body: '¡Fuiste seleccionado/a para un bono de Gs. 300.000! Reclamalo antes de las 20:00 hs cargando tus datos: promo-bnc.link/reclamo',
+    meta: 'Remitente: Promo Banco · hace 5 min',
+    correctChoice: 'ignorar',
+  },
+  {
     id: 'esc_push_otp',
     kind: 'push',
     title: 'Notificación push',
     body: 'Validación biométrica requerida. Reenviá el código OTP que recibiste por SMS para completar la verificación de tu identidad.',
     meta: 'App Banco · ahora',
+    correctChoice: 'verificar',
+  },
+  {
+    id: 'esc_push_dispositivo',
+    kind: 'push',
+    title: 'Notificación push',
+    body: 'Se agregó un nuevo dispositivo de confianza a tu cuenta. Si no fuiste vos, respondé con el código de 6 dígitos para revertirlo de inmediato.',
+    meta: 'App Banco · hace 1 min',
     correctChoice: 'verificar',
   },
   {
@@ -176,11 +272,27 @@ export const SCENARIO_MOCKS: ScenarioMock[] = [
     correctChoice: 'verificar',
   },
   {
+    id: 'esc_llamada_prestamo',
+    kind: 'llamada',
+    title: 'Transcripción de llamada entrante',
+    body: '"Le habla Ricardo de la financiera aliada de su banco. Tiene un préstamo pre-aprobado con tasa preferencial, pero la promoción vence hoy. Necesito su número de cuenta para acreditarle el dinero ahora mismo."',
+    meta: 'Número: desconocido · llamada en curso',
+    correctChoice: 'verificar',
+  },
+  {
     id: 'esc_qr_reembolso',
     kind: 'qr',
     title: 'Publicación: "Reembolso disponible"',
     body: 'El banco te debe un reembolso de Gs. 450.000 por comisiones cobradas de más. Escaneá el código QR y cargá tus datos para recibirlo hoy mismo.',
     meta: 'Publicación patrocinada',
+    correctChoice: 'ignorar',
+  },
+  {
+    id: 'esc_qr_estacionamiento',
+    kind: 'qr',
+    title: 'Cartel en parquímetro',
+    body: 'Escaneá este código QR para pagar tu estacionamiento y evitar la multa. Se requiere el número completo de tu tarjeta y el código de seguridad.',
+    meta: 'Cartel adherido al poste',
     correctChoice: 'ignorar',
   },
 ]

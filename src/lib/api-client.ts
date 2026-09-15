@@ -1,4 +1,4 @@
-import type { AssessmentSession } from '@/types/assessment'
+import type { AssessmentResult, AssessmentSession } from '@/types/assessment'
 
 /**
  * Simulación del Nivel 2 (Perfil Transaccional y Entorno Técnico, 40% del
@@ -48,5 +48,27 @@ export async function submitNivel2Webhook(
     score,
     label: 'Perfil Transaccional y Entorno Técnico (simulado)',
     source: 'simulado',
+  }
+}
+
+/**
+ * Envía la evaluación completa (anónima, vinculada solo al token elegido
+ * por el participante) al backend de recolección de datos de la tesis
+ * (Netlify Function + Blobs, ver netlify/functions/submit-assessment.mts).
+ * Falla en silencio: si el envío no llega (offline, función caída, etc.)
+ * el participante igual ve su resultado — nunca debe bloquear el flujo.
+ */
+export async function submitAssessmentToResearchStore(
+  session: AssessmentSession,
+  result: AssessmentResult,
+): Promise<void> {
+  try {
+    await fetch('/api/submit-assessment', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session, result }),
+    })
+  } catch {
+    // sin conexión o función no disponible — no interrumpe el flujo del participante
   }
 }

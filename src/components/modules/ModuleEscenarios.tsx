@@ -30,9 +30,19 @@ const CHOICES: { value: ScenarioChoice; label: string }[] = [
   { value: 'llamar', label: 'Llamar al número del mensaje' },
 ]
 
+function pickOnePerKind(mocks: readonly ScenarioMock[]): ScenarioMock[] {
+  const byKind = new Map<ScenarioMock['kind'], ScenarioMock[]>()
+  for (const m of mocks) {
+    const arr = byKind.get(m.kind) ?? []
+    arr.push(m)
+    byKind.set(m.kind, arr)
+  }
+  return Array.from(byKind.values()).map((variants) => shuffle(variants)[0])
+}
+
 export function ModuleEscenarios({ onComplete }: { onComplete: () => void }) {
   const addScenarioResult = useAssessmentStore((s) => s.addScenarioResult)
-  const scenarios = useMemo(() => shuffle(SCENARIO_MOCKS), [])
+  const scenarios = useMemo(() => shuffle(pickOnePerKind(SCENARIO_MOCKS)), [])
   const [index, setIndex] = useState(0)
   const [stepStart, setStepStart] = useState(() => nowMs())
 

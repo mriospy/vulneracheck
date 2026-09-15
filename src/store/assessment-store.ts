@@ -12,7 +12,7 @@ import type {
 } from '@/types/assessment'
 import { newSessionId } from '@/lib/metrics-collector'
 import { computeAssessmentResult } from '@/lib/scoring-engine'
-import { submitNivel2Webhook } from '@/lib/api-client'
+import { submitNivel2Webhook, submitAssessmentToResearchStore } from '@/lib/api-client'
 import { appendHistoryEntry, getHistory, type HistoryEntry } from '@/lib/history-store'
 
 export type ModuleKey = 'autorreporte' | 'microGss' | 'escenarios' | 'goNoGo'
@@ -134,6 +134,7 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         riskTier: result.riskTier,
       })
       set({ session: completedSession, result, isSubmitting: false, history })
+      void submitAssessmentToResearchStore(completedSession, result)
     } catch {
       set({ isSubmitting: false })
     }

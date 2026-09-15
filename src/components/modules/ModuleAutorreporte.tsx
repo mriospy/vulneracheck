@@ -7,7 +7,8 @@ import { nowMs, elapsedSince, shuffle } from '@/lib/metrics-collector'
 import {
   TIPI_ITEMS,
   FINANCIAL_OBJECTIVE_ITEMS,
-  CONTEXT_ITEMS,
+  CORE_CONTEXT_ITEMS,
+  EXPLORATORY_CONTEXT_ITEMS,
   type TipiItem,
   type FinancialObjectiveItem,
   type ContextItem,
@@ -33,7 +34,8 @@ export function ModuleAutorreporte({ onComplete }: { onComplete: () => void }) {
       kind: 'financial',
       item,
     }))
-    const contextSteps: Step[] = shuffle(CONTEXT_ITEMS).map((item) => ({ kind: 'context', item }))
+    const contextItems = [...CORE_CONTEXT_ITEMS, ...shuffle(EXPLORATORY_CONTEXT_ITEMS).slice(0, 2)]
+    const contextSteps: Step[] = shuffle(contextItems).map((item) => ({ kind: 'context', item }))
     return [...tipiSteps, ...financialSteps, { kind: 'confidence' }, ...contextSteps]
   }, [])
 
