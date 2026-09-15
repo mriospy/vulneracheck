@@ -13,6 +13,7 @@ import type {
 import { newSessionId } from '@/lib/metrics-collector'
 import { computeAssessmentResult } from '@/lib/scoring-engine'
 import { submitNivel2Webhook } from '@/lib/api-client'
+import { appendHistoryEntry, getHistory, type HistoryEntry } from '@/lib/history-store'
 
 export type ModuleKey = 'autorreporte' | 'microGss' | 'escenarios' | 'goNoGo'
 export const MODULE_ORDER: ModuleKey[] = ['autorreporte', 'microGss', 'escenarios', 'goNoGo']
@@ -41,6 +42,7 @@ interface AssessmentStore {
   currentModuleIndex: number
   result: AssessmentResult | null
   isSubmitting: boolean
+  history: HistoryEntry[]
 
   startSession: (tokenId: string) => void
   addTipiResponse: (r: TipiResponse) => void
@@ -64,6 +66,7 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
   currentModuleIndex: 0,
   result: null,
   isSubmitting: false,
+  history: getHistory(),
 
   startSession: (tokenId) =>
     set({
@@ -123,7 +126,14 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       }
       const nivel2 = await submitNivel2Webhook(completedSession)
       const result = computeAssessmentResult(completedSession, nivel2.score, nivel2.label)
-      set({ session: completedSession, result, isSubmitting: false })
+      const history = appendHistoryEntry({
+        sessionId: completedSession.sessionId,
+        tokenId: completedSession.tokenId,
+        completedAt: completedSession.completedAt ?? new Date().toISOString(),
+        totalScore: result.totalScore,
+        riskTier: result.riskTier,
+      })
+      set({ session: completedSession, result, isSubmitting: false, history })
     } catch {
       set({ isSubmitting: false })
     }

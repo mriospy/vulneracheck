@@ -118,6 +118,12 @@ export function OnboardingPage() {
                   Podés abandonar la evaluación en cualquier momento sin consecuencias. Los datos se
                   usarán exclusivamente con fines de investigación académica.
                 </p>
+                <p>
+                  Este dispositivo guarda localmente un historial mínimo (fecha, score y
+                  clasificación de riesgo) de tus últimas evaluaciones, para mostrar tu evolución en
+                  el informe descargable. Ninguna respuesta individual del test se almacena en este
+                  historial.
+                </p>
               </div>
             </DialogDescription>
           </DialogHeader>

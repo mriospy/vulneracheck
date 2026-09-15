@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useAssessmentStore } from '@/store/assessment-store'
 import type { RiskTier } from '@/types/assessment'
+import { PDFExportButton } from '@/components/pdf/PDFExportButton'
 
 const RISK_TIER_LABEL: Record<RiskTier, string> = {
   bajo: 'Riesgo bajo',
@@ -25,6 +26,7 @@ const RISK_TIER_VARIANT: Record<RiskTier, 'success' | 'warning' | 'destructive'>
 export function ResultsPage() {
   const navigate = useNavigate()
   const result = useAssessmentStore((s) => s.result)
+  const history = useAssessmentStore((s) => s.history)
   const reset = useAssessmentStore((s) => s.reset)
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function ResultsPage() {
         <p className="text-sm font-medium text-muted-foreground">Score total de vulnerabilidad</p>
         <div className="text-5xl font-bold">{result.totalScore}</div>
         <Badge variant={RISK_TIER_VARIANT[result.riskTier]}>{RISK_TIER_LABEL[result.riskTier]}</Badge>
+        <PDFExportButton />
       </div>
 
       <Card>
@@ -101,6 +104,26 @@ export function ResultsPage() {
           </p>
         </CardContent>
       </Card>
+
+      {history.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Evolución histórica</CardTitle>
+            <CardDescription>Últimas evaluaciones registradas en este dispositivo.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {history.map((h) => (
+              <div key={h.sessionId} className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {new Date(h.completedAt).toLocaleDateString('es-PY')}
+                </span>
+                <span className="font-medium">{h.totalScore}/100</span>
+                <Badge variant={RISK_TIER_VARIANT[h.riskTier]}>{RISK_TIER_LABEL[h.riskTier]}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Button
         variant="outline"
