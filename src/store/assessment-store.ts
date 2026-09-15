@@ -18,6 +18,48 @@ import { appendHistoryEntry, getHistory, type HistoryEntry } from '@/lib/history
 export type ModuleKey = 'autorreporte' | 'microGss' | 'escenarios' | 'goNoGo'
 export const MODULE_ORDER: ModuleKey[] = ['autorreporte', 'microGss', 'escenarios', 'goNoGo']
 
+const CURRENT_RESULT_KEY = 'vulneracheck.currentResult.v1'
+
+interface StoredCompletedResult {
+  session: AssessmentSession
+  result: AssessmentResult
+}
+
+/**
+ * El resultado recién calculado se guarda en sessionStorage (dura solo
+ * mientras la pestaña sigue abierta) para que un reload accidental — o
+ * uno deliberado tras un fallo de carga de un chunk luego de un
+ * redeploy — no borre el resultado ya calculado del participante.
+ */
+function saveCurrentResult(session: AssessmentSession, result: AssessmentResult) {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(CURRENT_RESULT_KEY, JSON.stringify({ session, result }))
+  } catch {
+    // almacenamiento no disponible — no bloquea el flujo
+  }
+}
+
+function loadCurrentResult(): StoredCompletedResult | null {
+  if (typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(CURRENT_RESULT_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as StoredCompletedResult
+  } catch {
+    return null
+  }
+}
+
+function clearCurrentResult() {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.removeItem(CURRENT_RESULT_KEY)
+  } catch {
+    // no-op
+  }
+}
+
 function emptySession(tokenId: string): AssessmentSession {
   return {
     sessionId: newSessionId(),
@@ -59,12 +101,14 @@ interface AssessmentStore {
   reset: () => void
 }
 
+const restored = loadCurrentResult()
+
 export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
-  tokenId: null,
+  tokenId: restored?.session.tokenId ?? null,
   consented: false,
-  session: null,
+  session: restored?.session ?? null,
   currentModuleIndex: 0,
-  result: null,
+  result: restored?.result ?? null,
   isSubmitting: false,
   history: getHistory(),
 
@@ -134,13 +178,15 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         riskTier: result.riskTier,
       })
       set({ session: completedSession, result, isSubmitting: false, history })
+      saveCurrentResult(completedSession, result)
       void submitAssessmentToResearchStore(completedSession, result)
     } catch {
       set({ isSubmitting: false })
     }
   },
 
-  reset: () =>
+  reset: () => {
+    clearCurrentResult()
     set({
       tokenId: null,
       consented: false,
@@ -148,5 +194,6 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       currentModuleIndex: 0,
       result: null,
       isSubmitting: false,
-    }),
+    })
+  },
 }))

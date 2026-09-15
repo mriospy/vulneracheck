@@ -58,9 +58,19 @@ export function PDFExportButton() {
         {isGenerating ? 'Generando PDF…' : 'Exportar informe PDF'}
       </Button>
       {error && (
-        <p className="text-center text-xs text-destructive">
-          No se pudo generar el PDF. Probá de nuevo.
-        </p>
+        <div className="flex flex-col items-center gap-1 text-center">
+          <p className="text-xs text-destructive">
+            No se pudo generar el PDF. Si la app se actualizó recientemente, recargá la página e
+            intentá de nuevo (tu resultado no se pierde).
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-xs font-medium text-primary underline underline-offset-2"
+          >
+            Recargar página
+          </button>
+        </div>
       )}
     </div>
   )
