@@ -1,32 +1,48 @@
-# React + TypeScript + Vite
+# VulneraCheck
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+PWA de evaluación de vulnerabilidad conductual frente al Fraude de Pagos
+Autorizados (APP) — instrumento de tesis. Vite + React 19 + TypeScript.
+Test de 4 módulos (~6-8 min), score pentafactorial, exportación de informe
+en PDF, y (opcional) integración con `~/vulneracheck-platform`.
 
-Currently, two official plugins are available:
+Desplegada en: https://vulneracheck.netlify.app
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Desarrollo local
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Tests E2E (Playwright)
+
+```bash
+npm run test:e2e
+```
+
+Corre standalone (sin depender de `vulneracheck-platform`): 4 tests —
+flujo completo de evaluación, resiliencia ante reload + exportación de PDF,
+y aleatorización del banco de ítems del Micro-GSS. `playwright.config.ts`
+levanta el server de dev solo y fuerza `VITE_PLATFORM_URL` vacío para no
+heredar configuración local de integración cross-proyecto.
+
+## Integración opcional con vulneracheck-platform
+
+Si `~/vulneracheck-platform` está corriendo local (`npm run dev` en
+`localhost:3000`), configurá en `.env.local`:
+
+```
+VITE_PLATFORM_URL=http://localhost:3000
+```
+
+Con esto, la PWA valida cada token de campaña contra la plataforma antes de
+arrancar y reporta el resultado al completar el test. Sin esta variable
+(el caso del deploy actual en Netlify), la PWA funciona 100% standalone.
+
+## Estado
+
+Ver el README de `~/vulneracheck-platform` para el estado del lado
+institucional (auth, campañas, simulador de phishing, dashboard). Del lado
+de la PWA: 4 módulos completos, PDF export, historial local, backend de
+recolección de datos (Netlify Functions + Blobs) e integración opcional con
+la plataforma — todo verificado end-to-end.
