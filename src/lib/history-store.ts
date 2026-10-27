@@ -1,14 +1,17 @@
-import type { RiskTier } from '@/types/assessment'
+import type { RiskLevel } from '@/types/assessment'
 
 export interface HistoryEntry {
   sessionId: string
   tokenId: string
   completedAt: string
-  totalScore: number
-  riskTier: RiskTier
+  totalRawScore: number
+  totalMaxScore: number
+  level: RiskLevel
 }
 
-const STORAGE_KEY = 'vulneracheck.history.v1'
+// v2: escala Likert de 5 dimensiones. Las entradas v1 (modelo pentafactorial,
+// score 0-100) no son comparables y se ignoran.
+const STORAGE_KEY = 'vulneracheck.history.v2'
 const MAX_ENTRIES = 5
 
 function readRaw(): HistoryEntry[] {

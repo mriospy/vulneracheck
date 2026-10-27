@@ -6,7 +6,7 @@ test('el resultado sobrevive a un reload y el PDF se sigue pudiendo exportar', a
   const scoreBefore = await page.locator('.text-5xl').innerText()
 
   await page.reload()
-  await expect(page.getByText('Score total de vulnerabilidad')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Puntaje total de vulnerabilidad')).toBeVisible({ timeout: 10_000 })
   const scoreAfter = await page.locator('.text-5xl').innerText()
   expect(scoreAfter).toBe(scoreBefore)
 

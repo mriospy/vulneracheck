@@ -55,8 +55,8 @@ export function OnboardingPage() {
         </div>
         <h1 className="text-2xl font-bold">VulneraCheck</h1>
         <p className="text-sm text-muted-foreground">
-          Instrumento de investigación sobre vulnerabilidad conductual frente al fraude de pagos
-          autorizados (APP).
+          Escala de vulnerabilidad frente a estafas por ingeniería social en servicios financieros
+          digitales de entidades bancarias.
         </p>
       </div>
 
@@ -66,8 +66,9 @@ export function OnboardingPage() {
             <Clock className="h-4 w-4 text-primary" /> Duración estimada: 6 a 8 minutos
           </CardTitle>
           <CardDescription>
-            4 módulos: autorreporte, comprensión bajo presión, escenarios simulados y una breve
-            tarea de atención.
+            40 afirmaciones sobre situaciones cotidianas (mensajes, llamadas, pagos y uso de la app del
+            banco). Indicás qué tan de acuerdo estás con cada una, del 1 al 5. No hay respuestas
+            correctas ni incorrectas.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -125,21 +126,22 @@ export function OnboardingPage() {
             <DialogDescription asChild>
               <div className="mt-2 flex max-h-72 flex-col gap-3 overflow-y-auto text-left text-sm">
                 <p>
-                  Esta evaluación forma parte de una tesis de grado sobre mitigación del Fraude de
-                  Pagos Autorizados (APP) mediante ingeniería social. Tu participación es voluntaria
-                  y anónima.
+                  Esta evaluación forma parte de una tesis de grado sobre la mitigación de estafas
+                  basadas en ingeniería social en servicios financieros digitales de entidades
+                  bancarias. Está dirigida a personas mayores de 18 años. Tu participación es
+                  voluntaria y anónima.
                 </p>
                 <p>
-                  Se registrarán tus respuestas, tiempos de reacción y decisiones ante escenarios
-                  simulados. No se te pedirá ningún dato bancario real en ningún momento.
+                  Se registrarán tus respuestas a la escala y el tiempo que tardás en cada una. No se
+                  te pedirá nombre, número de cédula ni ningún dato bancario real en ningún momento.
                 </p>
                 <p>
                   Podés abandonar la evaluación en cualquier momento sin consecuencias. Los datos se
                   usarán exclusivamente con fines de investigación académica.
                 </p>
                 <p>
-                  Este dispositivo guarda localmente un historial mínimo (fecha, score y
-                  clasificación de riesgo) de tus últimas evaluaciones, para mostrar tu evolución en
+                  Este dispositivo guarda localmente un historial mínimo (fecha, puntaje
+                  total y nivel de vulnerabilidad) de tus últimas evaluaciones, para mostrar tu evolución en
                   el informe descargable. Ninguna respuesta individual del test se almacena en este
                   historial.
                 </p>

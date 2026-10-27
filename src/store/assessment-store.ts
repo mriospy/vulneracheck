@@ -1,28 +1,12 @@
 import { create } from 'zustand'
-import type {
-  AssessmentResult,
-  AssessmentSession,
-  ContextResponse,
-  FinancialObjectiveResponse,
-  GoNoGoTrial,
-  GssTrialResult,
-  LikertResponse,
-  ScenarioResult,
-  TipiResponse,
-} from '@/types/assessment'
-import { newSessionId } from '@/lib/metrics-collector'
+import type { AssessmentResult, AssessmentSession, ScaleResponse } from '@/types/assessment'
+import { newSessionId, shuffle } from '@/lib/metrics-collector'
 import { computeAssessmentResult } from '@/lib/scoring-engine'
-import {
-  submitNivel2Webhook,
-  submitAssessmentToResearchStore,
-  submitAssessmentToPlatform,
-} from '@/lib/api-client'
+import { SCALE_ITEMS } from '@/lib/item-banks'
+import { submitAssessmentToResearchStore, submitAssessmentToPlatform } from '@/lib/api-client'
 import { appendHistoryEntry, getHistory, type HistoryEntry } from '@/lib/history-store'
 
-export type ModuleKey = 'autorreporte' | 'microGss' | 'escenarios' | 'goNoGo'
-export const MODULE_ORDER: ModuleKey[] = ['autorreporte', 'microGss', 'escenarios', 'goNoGo']
-
-const CURRENT_RESULT_KEY = 'vulneracheck.currentResult.v1'
+const CURRENT_RESULT_KEY = 'vulneracheck.currentResult.v2'
 
 interface StoredCompletedResult {
   session: AssessmentSession
@@ -64,6 +48,9 @@ function clearCurrentResult() {
   }
 }
 
+// Los 40 ítems se presentan mezclados entre dimensiones y en orden aleatorio
+// por sesión, para que la persona no responda por bloques temáticos ni en
+// "piloto automático". El orden usado queda registrado en la sesión.
 function emptySession(tokenId: string): AssessmentSession {
   return {
     sessionId: newSessionId(),
@@ -71,13 +58,8 @@ function emptySession(tokenId: string): AssessmentSession {
     consentedAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
     completedAt: null,
-    tipi: [],
-    financialObjective: [],
-    financialConfidence: null,
-    context: [],
-    gss: [],
-    scenarios: [],
-    goNoGo: [],
+    itemOrder: shuffle(SCALE_ITEMS).map((i) => i.id),
+    responses: [],
   }
 }
 
@@ -85,22 +67,13 @@ interface AssessmentStore {
   tokenId: string | null
   consented: boolean
   session: AssessmentSession | null
-  currentModuleIndex: number
   result: AssessmentResult | null
   isSubmitting: boolean
   history: HistoryEntry[]
 
   startSession: (tokenId: string) => void
-  addTipiResponse: (r: TipiResponse) => void
-  addFinancialObjectiveResponse: (r: FinancialObjectiveResponse) => void
-  setFinancialConfidence: (r: LikertResponse) => void
-  addContextResponse: (r: ContextResponse) => void
-  addGssTrial: (r: GssTrialResult) => void
-  addScenarioResult: (r: ScenarioResult) => void
-  addGoNoGoTrial: (r: GoNoGoTrial) => void
-
-  goToNextModule: () => void
-  isLastModule: () => boolean
+  /** Registra o reemplaza (si la persona volvió atrás) la respuesta a un ítem. */
+  setResponse: (r: ScaleResponse) => void
   finalizeAssessment: () => Promise<void>
   reset: () => void
 }
@@ -111,7 +84,6 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
   tokenId: restored?.session.tokenId ?? null,
   consented: false,
   session: restored?.session ?? null,
-  currentModuleIndex: 0,
   result: restored?.result ?? null,
   isSubmitting: false,
   history: getHistory(),
@@ -121,47 +93,20 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       tokenId,
       consented: true,
       session: emptySession(tokenId),
-      currentModuleIndex: 0,
       result: null,
     }),
 
-  addTipiResponse: (r) =>
-    set((s) => (s.session ? { session: { ...s.session, tipi: [...s.session.tipi, r] } } : s)),
-
-  addFinancialObjectiveResponse: (r) =>
+  setResponse: (r) =>
     set((s) =>
       s.session
-        ? { session: { ...s.session, financialObjective: [...s.session.financialObjective, r] } }
+        ? {
+            session: {
+              ...s.session,
+              responses: [...s.session.responses.filter((x) => x.itemId !== r.itemId), r],
+            },
+          }
         : s,
     ),
-
-  setFinancialConfidence: (r) =>
-    set((s) => (s.session ? { session: { ...s.session, financialConfidence: r } } : s)),
-
-  addContextResponse: (r) =>
-    set((s) =>
-      s.session ? { session: { ...s.session, context: [...s.session.context, r] } } : s,
-    ),
-
-  addGssTrial: (r) =>
-    set((s) => (s.session ? { session: { ...s.session, gss: [...s.session.gss, r] } } : s)),
-
-  addScenarioResult: (r) =>
-    set((s) =>
-      s.session ? { session: { ...s.session, scenarios: [...s.session.scenarios, r] } } : s,
-    ),
-
-  addGoNoGoTrial: (r) =>
-    set((s) =>
-      s.session ? { session: { ...s.session, goNoGo: [...s.session.goNoGo, r] } } : s,
-    ),
-
-  goToNextModule: () =>
-    set((s) => ({
-      currentModuleIndex: Math.min(s.currentModuleIndex + 1, MODULE_ORDER.length - 1),
-    })),
-
-  isLastModule: () => get().currentModuleIndex === MODULE_ORDER.length - 1,
 
   finalizeAssessment: async () => {
     const { session } = get()
@@ -172,14 +117,14 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         ...session,
         completedAt: new Date().toISOString(),
       }
-      const nivel2 = await submitNivel2Webhook(completedSession)
-      const result = computeAssessmentResult(completedSession, nivel2.score, nivel2.label)
+      const result = computeAssessmentResult(completedSession)
       const history = appendHistoryEntry({
         sessionId: completedSession.sessionId,
         tokenId: completedSession.tokenId,
         completedAt: completedSession.completedAt ?? new Date().toISOString(),
-        totalScore: result.totalScore,
-        riskTier: result.riskTier,
+        totalRawScore: result.totalRawScore,
+        totalMaxScore: result.totalMaxScore,
+        level: result.level,
       })
       set({ session: completedSession, result, isSubmitting: false, history })
       saveCurrentResult(completedSession, result)
@@ -196,7 +141,6 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       tokenId: null,
       consented: false,
       session: null,
-      currentModuleIndex: 0,
       result: null,
       isSubmitting: false,
     })

@@ -21,16 +21,35 @@ export default async (req: Request, _context: Context) => {
 
   const format = url.searchParams.get('format') ?? 'json'
   if (format === 'csv') {
-    const rows = records.map((r) => ({
-      sessionId: r?.session?.sessionId ?? '',
-      tokenId: r?.session?.tokenId ?? '',
-      completedAt: r?.session?.completedAt ?? '',
-      totalScore: r?.result?.totalScore ?? '',
-      riskTier: r?.result?.riskTier ?? '',
-      nivel1Score: r?.result?.nivel1?.compositeScore ?? '',
-      nivel2Score: r?.result?.nivel2SimulatedScore ?? '',
-      receivedAt: r?.receivedAt ?? '',
-    }))
+    // Una columna por dimensión (puntaje bruto) y una por ítem (respuesta
+    // original 1-5, sin invertir) para el análisis de la tesis. Los registros
+    // del instrumento anterior (sin result.dimensions) quedan con esas
+    // columnas vacías.
+    const DIMENSION_KEYS = ['urgencia', 'autoridad', 'reciprocidad', 'conformidad', 'alfabetizacion']
+    type Dim = { dimension: string; rawScore: number; level: string }
+    type Resp = { itemId: string; value: number }
+    const itemIds = Array.from(
+      new Set(records.flatMap((r) => ((r?.session?.responses ?? []) as Resp[]).map((x) => x.itemId))),
+    ).sort()
+    const rows = records.map((r) => {
+      const dims = (r?.result?.dimensions ?? []) as Dim[]
+      const responses = (r?.session?.responses ?? []) as Resp[]
+      const row: Record<string, unknown> = {
+        sessionId: r?.session?.sessionId ?? '',
+        tokenId: r?.session?.tokenId ?? '',
+        completedAt: r?.session?.completedAt ?? '',
+        totalRawScore: r?.result?.totalRawScore ?? '',
+        level: r?.result?.level ?? '',
+      }
+      for (const key of DIMENSION_KEYS) {
+        const d = dims.find((x) => x.dimension === key)
+        row[`${key}_raw`] = d?.rawScore ?? ''
+        row[`${key}_level`] = d?.level ?? ''
+      }
+      for (const id of itemIds) row[id] = responses.find((x) => x.itemId === id)?.value ?? ''
+      row.receivedAt = r?.receivedAt ?? ''
+      return row
+    })
     const header = Object.keys(rows[0] ?? { sessionId: '' }).join(',')
     const csvLines = rows.map((row) =>
       Object.values(row)

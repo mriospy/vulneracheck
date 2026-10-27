@@ -1,312 +1,470 @@
-// Bancos de ítems de los 4 módulos del Nivel 1. Cada banco es más grande que lo
-// mínimo necesario por sesión: el módulo selecciona un subconjunto aleatorio
-// (ver metrics-collector#shuffle) para reducir el efecto de memorización.
+// Escala de Vulnerabilidad Frente a Estafas en Servicios Financieros Digitales
+// de Entidades Bancarias (anteproyecto de tesis, Ríos Bazán 2026).
+//
+// 5 dimensiones x 8 ítems = 40 ítems, banco inicial para el juicio de
+// expertos (Boateng et al., 2018 recomiendan generar aprox. el doble de los
+// ítems finales). Formato Likert 1-5, de "Totalmente en desacuerdo" a
+// "Totalmente de acuerdo".
+//
+// reverseScored = false (directo): estar de acuerdo indica MÁS vulnerabilidad.
+// reverseScored = true (inverso): estar de acuerdo indica conducta protectora;
+// el motor de puntuación lo invierte (6 - valor) antes de sumar, para que
+// todas las sumas se lean igual: mayor puntaje = mayor vulnerabilidad.
+//
+// Los ítems describen situaciones reconocibles del contexto local (WhatsApp,
+// llamadas, Marketplace, comercio de Ciudad del Este) y no rasgos abstractos.
 
-export interface TipiItem {
+import type { DimensionKey } from '@/types/assessment'
+
+export const LIKERT_LABELS = [
+  'Totalmente en desacuerdo',
+  'En desacuerdo',
+  'Ni de acuerdo ni en desacuerdo',
+  'De acuerdo',
+  'Totalmente de acuerdo',
+] as const
+
+export type ScamModality =
+  | 'Falso bloqueo / alerta'
+  | 'Falso soporte del banco'
+  | 'SIM swapping'
+  | 'Transferencia falsa'
+  | 'Phishing por enlace'
+  | 'Acceso remoto'
+  | 'Falso premio / reembolso'
+  | 'Venta falsa'
+  | 'Inversión falsa'
+  | 'Robo de credenciales'
+  | 'App o página clonada'
+  | 'Robo de WhatsApp'
+
+export interface DimensionIndicator {
   id: string
   text: string
-  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness'
+}
+
+export interface DimensionDefinition {
+  key: DimensionKey
+  code: string
+  label: string
+  /** Definición conceptual, tal como figura en el anteproyecto. */
+  definition: string
+  source: string
+  indicators: DimensionIndicator[]
+}
+
+export const DIMENSIONS: DimensionDefinition[] = [
+  {
+    key: 'urgencia',
+    code: 'URG',
+    label: 'Reactividad ante la urgencia',
+    definition:
+      'Propensión a experimentar una reducción del control cognitivo bajo la presión de estímulos que exigen acción inmediata, especialmente ante la amenaza de una pérdida inminente de fondos.',
+    source: 'Lyu et al. (2025)',
+    indicators: [
+      { id: 'URG-a', text: 'Acción inmediata ante alertas de bloqueo o pérdida' },
+      { id: 'URG-b', text: 'Omisión de la verificación bajo presión de tiempo' },
+      { id: 'URG-c', text: 'Respuesta guiada por el miedo a la pérdida' },
+    ],
+  },
+  {
+    key: 'autoridad',
+    code: 'AUT',
+    label: 'Obediencia a la autoridad',
+    definition:
+      'Medida en que el usuario acata instrucciones o divulga credenciales al interactuar con individuos que suplantan roles legítimos o de alto estatus institucional dentro de una entidad bancaria.',
+    source: 'Modic et al. (2018); Wulandari et al. (2022)',
+    indicators: [
+      { id: 'AUT-a', text: 'Acatamiento de instrucciones de supuesto personal bancario o de telefonía' },
+      { id: 'AUT-b', text: 'Divulgación de credenciales o códigos ante un rol institucional' },
+      { id: 'AUT-c', text: 'Confianza en señales de oficialidad (cargo, datos personales conocidos)' },
+    ],
+  },
+  {
+    key: 'reciprocidad',
+    code: 'REC',
+    label: 'Reciprocidad interpersonal',
+    definition:
+      'Susceptibilidad del usuario ante tácticas de supuesta empatía o favores simulados, que generan una presión interna para corresponder la amabilidad recibida.',
+    source: 'Ferreira y Camera (2016)',
+    indicators: [
+      { id: 'REC-a', text: 'Sentimiento de deuda ante una ayuda o trato amable' },
+      { id: 'REC-b', text: 'Entrega de información a cambio de un beneficio o favor' },
+      { id: 'REC-c', text: 'Dificultad para negarse tras un favor recibido' },
+    ],
+  },
+  {
+    key: 'conformidad',
+    code: 'CON',
+    label: 'Conformidad social',
+    definition:
+      'Tendencia a buscar seguridad copiando el comportamiento mayoritario ante la incertidumbre, como ocurre con anuncios o plataformas que muestran comentarios positivos de supuestos clientes.',
+    source: 'Norris y Brookes (2021)',
+    indicators: [
+      { id: 'CON-a', text: 'Confianza basada en opiniones o comentarios de terceros' },
+      { id: 'CON-b', text: 'Imitación del comportamiento de contactos o grupos' },
+      { id: 'CON-c', text: 'Credibilidad atribuida por popularidad' },
+    ],
+  },
+  {
+    key: 'alfabetizacion',
+    code: 'ADF',
+    label: 'Alfabetización digital financiera',
+    definition:
+      'Conocimiento práctico operativo del usuario: verificar que la dirección web del banco sea la correcta, distinguir una pantalla clonada de una real y manejar sus credenciales de manera privada.',
+    source: 'Chen et al. (2026)',
+    indicators: [
+      { id: 'ADF-a', text: 'Verificación de la dirección web y del canal oficial' },
+      { id: 'ADF-b', text: 'Reconocimiento de pantallas y aplicaciones clonadas' },
+      { id: 'ADF-c', text: 'Gestión privada de credenciales (claves, PIN, token, verificación en dos pasos)' },
+      { id: 'ADF-d', text: 'Verificación de pagos y de señales de SIM swapping' },
+    ],
+  },
+]
+
+export interface ScaleItem {
+  id: string
+  dimension: DimensionKey
+  indicator: string
+  text: string
   reverseScored: boolean
+  modality: ScamModality
 }
 
-// TIPI (Ten-Item Personality Inventory), Gosling, Rentfrow & Swann (2003).
-// Ítems 2, 4, 6, 8, 10 tienen puntuación invertida.
-export const TIPI_ITEMS: TipiItem[] = [
-  { id: 'tipi_1', text: 'Extrovertido, entusiasta', trait: 'extraversion', reverseScored: false },
-  { id: 'tipi_2', text: 'Crítico, propenso a discutir', trait: 'agreeableness', reverseScored: true },
-  { id: 'tipi_3', text: 'Confiable, autodisciplinado', trait: 'conscientiousness', reverseScored: false },
-  { id: 'tipi_4', text: 'Ansioso, se altera con facilidad', trait: 'stability', reverseScored: true },
-  { id: 'tipi_5', text: 'Abierto a experiencias nuevas, poco convencional', trait: 'openness', reverseScored: false },
-  { id: 'tipi_6', text: 'Reservado, callado', trait: 'extraversion', reverseScored: true },
-  { id: 'tipi_7', text: 'Solidario, cálido con los demás', trait: 'agreeableness', reverseScored: false },
-  { id: 'tipi_8', text: 'Desorganizado, descuidado', trait: 'conscientiousness', reverseScored: true },
-  { id: 'tipi_9', text: 'Calmado, emocionalmente estable', trait: 'stability', reverseScored: false },
-  { id: 'tipi_10', text: 'Convencional, poco creativo', trait: 'openness', reverseScored: true },
-]
-
-export interface FinancialObjectiveItem {
-  id: string
-  prompt: string
-  options: { id: string; text: string }[]
-  correctOptionId: string
-}
-
-// Adaptado de los "Big Three" de Lusardi & Mitchell (2011) — interés compuesto,
-// inflación y diversificación de riesgo.
-export const FINANCIAL_OBJECTIVE_ITEMS: FinancialObjectiveItem[] = [
+export const SCALE_ITEMS: ScaleItem[] = [
+  // --- D1 · Reactividad ante la urgencia ------------------------------------
   {
-    id: 'fin_interes',
-    prompt:
-      'Depositás Gs. 1.000.000 en una cuenta que paga 2% de interés anual. Si no retirás nada, ¿cuánto tendrás en esa cuenta luego de 5 años?',
-    options: [
-      { id: 'a', text: 'Más de Gs. 1.100.000' },
-      { id: 'b', text: 'Exactamente Gs. 1.100.000' },
-      { id: 'c', text: 'Menos de Gs. 1.100.000' },
-      { id: 'd', text: 'No sé' },
-    ],
-    correctOptionId: 'a',
+    id: 'urg_1',
+    dimension: 'urgencia',
+    indicator: 'URG-a',
+    text: 'Si me llega un WhatsApp que dice que mi tarjeta será bloqueada en los próximos minutos, sigo las instrucciones del mensaje para evitarlo.',
+    reverseScored: false,
+    modality: 'Falso bloqueo / alerta',
   },
   {
-    id: 'fin_inflacion',
-    prompt:
-      'Si la inflación anual es 5% y el interés de tu cuenta de ahorro es 1%, en un año ¿podrás comprar más, igual o menos que hoy con ese dinero?',
-    options: [
-      { id: 'a', text: 'Más que hoy' },
-      { id: 'b', text: 'Exactamente igual' },
-      { id: 'c', text: 'Menos que hoy' },
-      { id: 'd', text: 'No sé' },
-    ],
-    correctOptionId: 'c',
+    id: 'urg_2',
+    dimension: 'urgencia',
+    indicator: 'URG-a',
+    text: 'Cuando un mensaje me avisa de un movimiento que no reconozco en mi cuenta, toco el enlace que trae para cancelarlo cuanto antes.',
+    reverseScored: false,
+    modality: 'Phishing por enlace',
   },
   {
-    id: 'fin_diversificacion',
-    prompt: '"Invertir todo tus ahorros en una sola empresa es más seguro que repartirlo en varias." ¿Verdadero o falso?',
-    options: [
-      { id: 'a', text: 'Verdadero' },
-      { id: 'b', text: 'Falso' },
-      { id: 'c', text: 'No sé' },
-    ],
-    correctOptionId: 'b',
-  },
-]
-
-export interface ContextItem {
-  id: string
-  text: string
-  type: 'boolean' | 'likert'
-  reverseScored?: boolean
-}
-
-// Ítems núcleo: siempre se presentan y alimentan directamente el scoring
-// (ver lib/scoring-engine.ts#scoreVulnerabilidadFinanciera). No se rotan
-// para no introducir varianza de medición en la fórmula de puntuación.
-export const CORE_CONTEXT_ITEMS: ContextItem[] = [
-  {
-    id: 'ctx_victima_reciente',
-    text: '¿Fuiste víctima de un fraude o estafa financiera en los últimos 12 meses (te hicieron transferir o entregar dinero)?',
-    type: 'boolean',
+    id: 'urg_3',
+    dimension: 'urgencia',
+    indicator: 'URG-b',
+    text: 'Si me dicen que tengo poco tiempo para salvar mi dinero, prefiero actuar rápido antes que perder tiempo verificando.',
+    reverseScored: false,
+    modality: 'Falso bloqueo / alerta',
   },
   {
-    id: 'ctx_intento_reciente',
-    text: '¿Recibiste una llamada, mensaje o correo sospechoso pidiendo datos bancarios o un pago urgente en el último mes?',
-    type: 'boolean',
+    id: 'urg_4',
+    dimension: 'urgencia',
+    indicator: 'URG-b',
+    text: 'Si un cliente apurado me muestra el comprobante de una transferencia, le entrego la mercadería sin esperar a ver el dinero acreditado.',
+    reverseScored: false,
+    modality: 'Transferencia falsa',
   },
   {
-    id: 'ctx_verifica_canal_oficial',
-    text: 'Cuando recibo una solicitud urgente que dice ser de mi banco, la verifico llamando a un número oficial antes de actuar.',
-    type: 'likert',
+    id: 'urg_5',
+    dimension: 'urgencia',
+    indicator: 'URG-c',
+    text: 'El miedo a perder mis ahorros me haría responder un mensaje del banco aunque me pareciera raro.',
+    reverseScored: false,
+    modality: 'Falso bloqueo / alerta',
+  },
+  {
+    id: 'urg_6',
+    dimension: 'urgencia',
+    indicator: 'URG-b',
+    text: 'Aunque un mensaje diga que mi cuenta se bloqueará hoy, primero entro a la app oficial del banco para confirmar si es cierto.',
     reverseScored: true,
+    modality: 'Falso bloqueo / alerta',
   },
-]
-
-// Banco de ítems exploratorios: no alimentan el scoring (son descriptivos,
-// para análisis posterior de la tesis), se seleccionan 2 al azar por sesión.
-export const EXPLORATORY_CONTEXT_ITEMS: ContextItem[] = [
   {
-    id: 'ctx_comparte_con_terceros',
-    text: 'Antes de tomar una decisión financiera bajo presión, suelo consultarlo con otra persona de confianza.',
-    type: 'likert',
+    id: 'urg_7',
+    dimension: 'urgencia',
+    indicator: 'URG-a',
+    text: 'Cuando un mensaje me exige actuar "de inmediato", lo tomo como una señal de posible estafa.',
     reverseScored: true,
+    modality: 'Falso bloqueo / alerta',
   },
   {
-    id: 'ctx_comparte_otp',
-    text: 'Si me llaman diciendo ser del banco y me piden el código que acabo de recibir por SMS, se lo comparto.',
-    type: 'likert',
+    id: 'urg_8',
+    dimension: 'urgencia',
+    indicator: 'URG-c',
+    text: 'Antes de responder a una alerta urgente sobre mi cuenta, me tomo unos minutos para pensarlo o consultarlo con alguien de confianza.',
+    reverseScored: true,
+    modality: 'Falso bloqueo / alerta',
+  },
+
+  // --- D2 · Obediencia a la autoridad ---------------------------------------
+  {
+    id: 'aut_1',
+    dimension: 'autoridad',
+    indicator: 'AUT-a',
+    text: 'Si me llama alguien que se presenta como funcionario del área de seguridad de mi banco, sigo sus indicaciones.',
     reverseScored: false,
+    modality: 'Falso soporte del banco',
   },
   {
-    id: 'ctx_password_reutilizada',
-    text: 'Uso la misma contraseña o una muy similar en varias cuentas (banco, correo, redes sociales).',
-    type: 'likert',
+    id: 'aut_2',
+    dimension: 'autoridad',
+    indicator: 'AUT-b',
+    text: 'Le daría el código que me llegó por SMS a una persona de "auditoría" del banco si me explica que es para proteger mi cuenta.',
     reverseScored: false,
+    modality: 'Falso soporte del banco',
   },
   {
-    id: 'ctx_clic_sin_revisar',
-    text: 'Cuando un mensaje me genera urgencia, suelo hacer clic en el enlace antes de revisar quién lo envía.',
-    type: 'likert',
+    id: 'aut_3',
+    dimension: 'autoridad',
+    indicator: 'AUT-c',
+    text: 'Si quien me llama conoce mi nombre completo y mi número de cédula, creo que realmente es de mi banco.',
     reverseScored: false,
+    modality: 'Falso soporte del banco',
   },
   {
-    id: 'ctx_capacitacion_seguridad',
-    text: 'Recibí alguna capacitación o charla sobre seguridad digital / prevención de fraude en el último año.',
-    type: 'boolean',
+    id: 'aut_4',
+    dimension: 'autoridad',
+    indicator: 'AUT-a',
+    text: 'Si un supuesto técnico del banco me pide instalar una aplicación para "revisar" mi celular, lo haría.',
+    reverseScored: false,
+    modality: 'Acceso remoto',
   },
   {
-    id: 'ctx_notificaciones_banco',
-    text: 'Tengo activadas las notificaciones push de mi banco para cada movimiento de mi cuenta.',
-    type: 'boolean',
+    id: 'aut_5',
+    dimension: 'autoridad',
+    indicator: 'AUT-b',
+    text: 'Si alguien de mi compañía telefónica me pide un código para "actualizar mi línea", se lo paso.',
+    reverseScored: false,
+    modality: 'SIM swapping',
+  },
+  {
+    id: 'aut_6',
+    dimension: 'autoridad',
+    indicator: 'AUT-b',
+    text: 'Aunque quien me llama diga ser gerente del banco, me niego a darle mis claves o códigos.',
+    reverseScored: true,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'aut_7',
+    dimension: 'autoridad',
+    indicator: 'AUT-a',
+    text: 'Cuando alguien dice llamar de mi banco, corto y llamo yo al número oficial que figura en mi tarjeta.',
+    reverseScored: true,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'aut_8',
+    dimension: 'autoridad',
+    indicator: 'AUT-c',
+    text: 'Para mí, que alguien diga tener un cargo en el banco no prueba que sea quien dice ser.',
+    reverseScored: true,
+    modality: 'Falso soporte del banco',
+  },
+
+  // --- D3 · Reciprocidad interpersonal --------------------------------------
+  {
+    id: 'rec_1',
+    dimension: 'reciprocidad',
+    indicator: 'REC-a',
+    text: 'Si alguien del "soporte" del banco fue muy amable y me ayudó con un problema, me sentiría mal negarle un dato que me pide.',
+    reverseScored: false,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'rec_2',
+    dimension: 'reciprocidad',
+    indicator: 'REC-a',
+    text: 'Cuando alguien se toma el tiempo de guiarme paso a paso por teléfono, siento que debo colaborar con lo que me pide.',
+    reverseScored: false,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'rec_3',
+    dimension: 'reciprocidad',
+    indicator: 'REC-b',
+    text: 'Si me avisan de un premio o reembolso a mi favor, estoy dispuesto/a a confirmar mis datos bancarios para recibirlo.',
+    reverseScored: false,
+    modality: 'Falso premio / reembolso',
+  },
+  {
+    id: 'rec_4',
+    dimension: 'reciprocidad',
+    indicator: 'REC-c',
+    text: 'Si alguien me escribe que me transfirió dinero "por error", se lo devolvería enseguida sin consultar antes al banco.',
+    reverseScored: false,
+    modality: 'Transferencia falsa',
+  },
+  {
+    id: 'rec_5',
+    dimension: 'reciprocidad',
+    indicator: 'REC-c',
+    text: 'Si un vendedor de Marketplace me hizo una rebaja especial, le pago por adelantado sin pedir más garantías.',
+    reverseScored: false,
+    modality: 'Venta falsa',
+  },
+  {
+    id: 'rec_6',
+    dimension: 'reciprocidad',
+    indicator: 'REC-c',
+    text: 'Aunque alguien haya sido muy amable conmigo por teléfono, corto la llamada si me pide claves o códigos.',
+    reverseScored: true,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'rec_7',
+    dimension: 'reciprocidad',
+    indicator: 'REC-a',
+    text: 'Desconfío cuando un desconocido me ofrece ayuda con mi cuenta bancaria sin que yo la haya pedido.',
+    reverseScored: true,
+    modality: 'Falso soporte del banco',
+  },
+  {
+    id: 'rec_8',
+    dimension: 'reciprocidad',
+    indicator: 'REC-b',
+    text: 'Rechazo premios, bonos o beneficios que me piden mis datos personales a cambio.',
+    reverseScored: true,
+    modality: 'Falso premio / reembolso',
+  },
+
+  // --- D4 · Conformidad social -----------------------------------------------
+  {
+    id: 'con_1',
+    dimension: 'conformidad',
+    indicator: 'CON-a',
+    text: 'Si una inversión ofrecida en redes sociales tiene muchos comentarios positivos de clientes, la considero confiable.',
+    reverseScored: false,
+    modality: 'Inversión falsa',
+  },
+  {
+    id: 'con_2',
+    dimension: 'conformidad',
+    indicator: 'CON-b',
+    text: 'Si varios conocidos de un grupo de WhatsApp dicen que ganaron dinero con una plataforma, me animaría a invertir también.',
+    reverseScored: false,
+    modality: 'Inversión falsa',
+  },
+  {
+    id: 'con_3',
+    dimension: 'conformidad',
+    indicator: 'CON-c',
+    text: 'Una página con muchos seguidores o "me gusta" me da confianza para cargar mis datos.',
+    reverseScored: false,
+    modality: 'App o página clonada',
+  },
+  {
+    id: 'con_4',
+    dimension: 'conformidad',
+    indicator: 'CON-b',
+    text: 'Si un familiar o amigo me reenvía el enlace de una promoción del banco, lo abro sin verificarlo.',
+    reverseScored: false,
+    modality: 'Phishing por enlace',
+  },
+  {
+    id: 'con_5',
+    dimension: 'conformidad',
+    indicator: 'CON-c',
+    text: 'Cuando veo que mucha gente usa una app de préstamos o inversiones, asumo que es segura.',
+    reverseScored: false,
+    modality: 'Inversión falsa',
+  },
+  {
+    id: 'con_6',
+    dimension: 'conformidad',
+    indicator: 'CON-a',
+    text: 'Aunque muchas personas recomienden una inversión, verifico por mi cuenta que la empresa esté autorizada antes de poner dinero.',
+    reverseScored: true,
+    modality: 'Inversión falsa',
+  },
+  {
+    id: 'con_7',
+    dimension: 'conformidad',
+    indicator: 'CON-a',
+    text: 'Sé que los comentarios positivos de una publicación pueden ser falsos o comprados.',
+    reverseScored: true,
+    modality: 'Inversión falsa',
+  },
+  {
+    id: 'con_8',
+    dimension: 'conformidad',
+    indicator: 'CON-b',
+    text: 'Que en un grupo todos compartan una "oportunidad" no cambia mi decisión de verificarla primero.',
+    reverseScored: true,
+    modality: 'Inversión falsa',
+  },
+
+  // --- D5 · Alfabetización digital financiera --------------------------------
+  {
+    id: 'adf_1',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-a',
+    text: 'Sé revisar la dirección web para confirmar que estoy en la página oficial de mi banco.',
+    reverseScored: true,
+    modality: 'App o página clonada',
+  },
+  {
+    id: 'adf_2',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-b',
+    text: 'Puedo distinguir una pantalla falsa de la de mi banco aunque se vean parecidas.',
+    reverseScored: true,
+    modality: 'App o página clonada',
+  },
+  {
+    id: 'adf_3',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-a',
+    text: 'Entro a la banca por internet desde enlaces que me llegan por mensaje o desde anuncios del buscador.',
+    reverseScored: false,
+    modality: 'Phishing por enlace',
+  },
+  {
+    id: 'adf_4',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-c',
+    text: 'Guardo mis claves o mi PIN anotados en el celular, en notas o en fotos.',
+    reverseScored: false,
+    modality: 'Robo de credenciales',
+  },
+  {
+    id: 'adf_5',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-c',
+    text: 'Tengo activada la verificación en dos pasos en mi WhatsApp.',
+    reverseScored: true,
+    modality: 'Robo de WhatsApp',
+  },
+  {
+    id: 'adf_6',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-d',
+    text: 'Me alcanza con ver la captura de un comprobante de transferencia para dar por recibido un pago.',
+    reverseScored: false,
+    modality: 'Transferencia falsa',
+  },
+  {
+    id: 'adf_7',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-b',
+    text: 'Descargo la app de mi banco solo desde la tienda oficial (Google Play o App Store).',
+    reverseScored: true,
+    modality: 'App o página clonada',
+  },
+  {
+    id: 'adf_8',
+    dimension: 'alfabetizacion',
+    indicator: 'ADF-d',
+    text: 'Si mi celular se queda sin señal de repente, espero a que vuelva antes de avisar a mi compañía telefónica o a mi banco.',
+    reverseScored: false,
+    modality: 'SIM swapping',
   },
 ]
 
-export interface GssScenarioVariant {
-  id: string
-  narrative: string
-  questions: {
-    id: string
-    /** Pregunta con premisa engañosa; responder "sí" = ceder a la sugestión (yield). */
-    text: string
-  }[]
-  pressureMessage: string
-}
-
-// Adaptado metodológicamente de la Gudjonsson Suggestibility Scale (GSS):
-// narrativa breve + preguntas líder, luego retroalimentación negativa/autoridad
-// y re-pregunta para medir "yield" (ceder) y "shift" (cambiar bajo presión).
-export const GSS_SCENARIOS: GssScenarioVariant[] = [
-  {
-    id: 'gss_variante_a',
-    narrative:
-      'Tu banco te envía una notificación: "Detectamos un acceso desde un nuevo dispositivo en Ciudad del Este a las 03:14 hs. Por seguridad, un asesor te llamará para confirmar tu identidad."',
-    questions: [
-      { id: 'q1', text: '¿El mensaje menciona que el acceso fue confirmado como fraudulento?' },
-      { id: 'q2', text: '¿El mensaje indica que perderás el dinero de tu cuenta si no respondés en los próximos minutos?' },
-    ],
-    pressureMessage:
-      'Nuestro sistema de verificación indica que tu respuesta anterior no coincide con el registro oficial. Por favor, confirmá nuevamente para continuar.',
-  },
-  {
-    id: 'gss_variante_b',
-    narrative:
-      'Recibís un correo del "Departamento de Seguridad" de tu banco: "Su tarjeta fue bloqueada preventivamente. Un especialista certificado necesita validar 3 datos para reactivarla hoy mismo."',
-    questions: [
-      { id: 'q1', text: '¿El correo indica que la tarjeta ya fue reactivada automáticamente?' },
-      { id: 'q2', text: '¿El correo advierte que el bloqueo será permanente si no se responde en el día?' },
-    ],
-    pressureMessage:
-      'Según nuestros registros de auditoría, tu respuesta anterior fue marcada como inconsistente. Te pedimos reconfirmar para evitar la suspensión de tu cuenta.',
-  },
-  {
-    id: 'gss_variante_c',
-    narrative:
-      'Un mensaje de la "Subsecretaría de Tributación" indica: "Detectamos una diferencia en su última declaración. Un funcionario habilitado se comunicará para regularizar su situación antes del vencimiento."',
-    questions: [
-      { id: 'q1', text: '¿El mensaje confirma que ya existe una multa aplicada a tu nombre?' },
-      { id: 'q2', text: '¿El mensaje indica que perderás beneficios fiscales si no respondés hoy?' },
-    ],
-    pressureMessage:
-      'El sistema de verificación tributaria marcó tu respuesta anterior como no coincidente con el registro oficial. Te pedimos confirmar nuevamente.',
-  },
-  {
-    id: 'gss_variante_d',
-    narrative:
-      'Una notificación de "Logística Express" avisa: "Tu paquete está retenido en aduana. Un agente autorizado te contactará para coordinar el pago de un arancel pendiente y liberar el envío."',
-    questions: [
-      { id: 'q1', text: '¿La notificación confirma que el paquete ya fue liberado?' },
-      { id: 'q2', text: '¿La notificación advierte que el paquete será devuelto si no se paga hoy?' },
-    ],
-    pressureMessage:
-      'Nuestro sistema de rastreo indica que tu respuesta anterior no coincide con el estado registrado del envío. Por favor, reconfirmá.',
-  },
-  {
-    id: 'gss_variante_e',
-    narrative:
-      'Un técnico de "Soporte Premium" llama indicando: "Detectamos actividad inusual en su computadora que podría comprometer su usuario bancario. Necesitamos acceso remoto certificado para revisar el equipo."',
-    questions: [
-      { id: 'q1', text: '¿El técnico confirma que tu equipo ya fue infectado con un virus?' },
-      { id: 'q2', text: '¿El técnico advierte que tu cuenta bancaria será bloqueada si no permitís el acceso ahora?' },
-    ],
-    pressureMessage:
-      'Nuestro sistema de diagnóstico remoto marcó tu respuesta anterior como inconsistente con el estado del equipo. Te pedimos reconfirmar.',
-  },
-  {
-    id: 'gss_variante_f',
-    narrative:
-      'Un familiar te escribe desde un número desconocido: "Perdí mi celular y estoy usando este número prestado. Tuve una emergencia y necesito que me hagas una transferencia urgente, después te explico."',
-    questions: [
-      { id: 'q1', text: '¿El mensaje incluye una videollamada que confirma la identidad del familiar?' },
-      { id: 'q2', text: '¿El mensaje explica en detalle el motivo exacto de la emergencia antes de pedir dinero?' },
-    ],
-    pressureMessage:
-      'La persona insiste: "No tengo tiempo de explicar más, por favor hacelo ya antes de que se corte la batería." Reconfirmá tu respuesta.',
-  },
-]
-
-export interface ScenarioMock {
-  id: string
-  kind: 'sms' | 'push' | 'llamada' | 'qr'
-  title: string
-  body: string
-  meta: string
-  correctChoice: 'ignorar' | 'verificar' | 'responder' | 'llamar'
-}
-
-export const SCENARIO_MOCKS: ScenarioMock[] = [
-  {
-    id: 'esc_sms_transferencia',
-    kind: 'sms',
-    title: 'SMS de "BancoSeguro"',
-    body: 'Detectamos una transferencia inusual de Gs. 8.500.000. Si no fuiste vos, confirmá cancelando aquí: bncsgr.co/ok-2481',
-    meta: 'Remitente: BancoSeguro · hace 2 min',
-    correctChoice: 'verificar',
-  },
-  {
-    id: 'esc_sms_premio',
-    kind: 'sms',
-    title: 'SMS de "Promo Banco"',
-    body: '¡Fuiste seleccionado/a para un bono de Gs. 300.000! Reclamalo antes de las 20:00 hs cargando tus datos: promo-bnc.link/reclamo',
-    meta: 'Remitente: Promo Banco · hace 5 min',
-    correctChoice: 'ignorar',
-  },
-  {
-    id: 'esc_push_otp',
-    kind: 'push',
-    title: 'Notificación push',
-    body: 'Validación biométrica requerida. Reenviá el código OTP que recibiste por SMS para completar la verificación de tu identidad.',
-    meta: 'App Banco · ahora',
-    correctChoice: 'verificar',
-  },
-  {
-    id: 'esc_push_dispositivo',
-    kind: 'push',
-    title: 'Notificación push',
-    body: 'Se agregó un nuevo dispositivo de confianza a tu cuenta. Si no fuiste vos, respondé con el código de 6 dígitos para revertirlo de inmediato.',
-    meta: 'App Banco · hace 1 min',
-    correctChoice: 'verificar',
-  },
-  {
-    id: 'esc_llamada_vishing',
-    kind: 'llamada',
-    title: 'Transcripción de llamada entrante',
-    body: '"Buenas tardes, le habla Carla del área de Seguridad del banco. Detectamos movimientos irregulares en su cuenta y necesito que me confirme el código de 6 dígitos que le acabamos de enviar para revertir el cargo antes de que se procese."',
-    meta: 'Número: oculto · llamada en curso',
-    correctChoice: 'verificar',
-  },
-  {
-    id: 'esc_llamada_prestamo',
-    kind: 'llamada',
-    title: 'Transcripción de llamada entrante',
-    body: '"Le habla Ricardo de la financiera aliada de su banco. Tiene un préstamo pre-aprobado con tasa preferencial, pero la promoción vence hoy. Necesito su número de cuenta para acreditarle el dinero ahora mismo."',
-    meta: 'Número: desconocido · llamada en curso',
-    correctChoice: 'verificar',
-  },
-  {
-    id: 'esc_qr_reembolso',
-    kind: 'qr',
-    title: 'Publicación: "Reembolso disponible"',
-    body: 'El banco te debe un reembolso de Gs. 450.000 por comisiones cobradas de más. Escaneá el código QR y cargá tus datos para recibirlo hoy mismo.',
-    meta: 'Publicación patrocinada',
-    correctChoice: 'ignorar',
-  },
-  {
-    id: 'esc_qr_estacionamiento',
-    kind: 'qr',
-    title: 'Cartel en parquímetro',
-    body: 'Escaneá este código QR para pagar tu estacionamiento y evitar la multa. Se requiere el número completo de tu tarjeta y el código de seguridad.',
-    meta: 'Cartel adherido al poste',
-    correctChoice: 'ignorar',
-  },
-]
-
-export interface GoNoGoConfig {
-  totalTrials: number
-  goRatio: number
-  stimulusIntervalMsRange: [number, number]
-  responseWindowMs: number
-}
-
-export const GO_NO_GO_CONFIG: GoNoGoConfig = {
-  totalTrials: 20,
-  goRatio: 0.7,
-  stimulusIntervalMsRange: [900, 1500],
-  responseWindowMs: 800,
+export function dimensionDefinition(key: DimensionKey): DimensionDefinition {
+  const def = DIMENSIONS.find((d) => d.key === key)
+  if (!def) throw new Error(`Dimensión desconocida: ${key}`)
+  return def
 }

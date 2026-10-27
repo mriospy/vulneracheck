@@ -1,28 +1,31 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
-import type { AssessmentResult, AssessmentSession, RiskTier } from '@/types/assessment'
-import { buildModuleBreakdown, buildDiagnosisSentence } from '@/lib/report-data'
-import { deriveControls } from '@/lib/controls-engine'
+import { Document, Font, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import type { AssessmentResult, AssessmentSession, RiskLevel } from '@/types/assessment'
+import { buildDiagnosisSentence, buildSenales, VULNERABILITY_LABEL } from '@/lib/report-data'
+import { buildOrientaciones } from '@/lib/orientaciones'
+import { dimensionDefinition } from '@/lib/item-banks'
 import type { HistoryEntry } from '@/lib/history-store'
 
-const RISK_COLOR: Record<RiskTier, string> = {
+// El hyphenador por defecto de react-pdf es para inglés y corta mal palabras
+// en español ("Re-conocimiento"); se desactiva la división de palabras.
+Font.registerHyphenationCallback((word) => [word])
+
+const LEVEL_COLOR: Record<RiskLevel, string> = {
   bajo: '#16a34a',
-  moderado: '#d97706',
+  medio: '#d97706',
   alto: '#dc2626',
-  critico: '#991b1b',
 }
 
-const RISK_LABEL: Record<RiskTier, string> = {
-  bajo: 'RIESGO BAJO',
-  moderado: 'RIESGO MEDIO',
-  alto: 'RIESGO ALTO',
-  critico: 'RIESGO CRÍTICO',
+const LEVEL_LABEL: Record<RiskLevel, string> = {
+  bajo: 'BAJO',
+  medio: 'MEDIO',
+  alto: 'ALTO',
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 9, fontFamily: 'Helvetica', color: '#1e293b' },
+  page: { padding: 36, paddingBottom: 56, fontSize: 9, fontFamily: 'Helvetica', color: '#1e293b' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   brand: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
-  brandSub: { fontSize: 8, color: '#64748b', marginTop: 2 },
+  brandSub: { fontSize: 8, color: '#64748b', marginTop: 2, maxWidth: 360 },
   metaBox: { alignItems: 'flex-end' },
   metaLine: { fontSize: 8, color: '#475569' },
   hr: { borderBottomWidth: 1, borderBottomColor: '#e2e8f0', marginVertical: 10 },
@@ -42,17 +45,26 @@ const styles = StyleSheet.create({
   th: { color: '#ffffff', fontSize: 8, fontFamily: 'Helvetica-Bold', padding: 6 },
   td: { fontSize: 8, padding: 6, color: '#334155' },
 
-  footer: { position: 'absolute', bottom: 24, left: 36, right: 36, fontSize: 7, color: '#94a3b8', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 6 },
+  orientBlock: { marginBottom: 8, padding: 8, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 4 },
+  orientHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  orientTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
+  orientSummary: { fontSize: 8, color: '#475569', marginBottom: 3 },
+  bullet: { fontSize: 8, color: '#334155', marginLeft: 6, marginBottom: 1.5 },
+  senal: { fontSize: 7, color: '#64748b', marginLeft: 6, marginTop: 1 },
+
+  footer: { position: 'absolute', bottom: 24, left: 36, right: 70, fontSize: 7, color: '#94a3b8', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 6 },
   pageNumber: { position: 'absolute', bottom: 24, right: 36, fontSize: 7, color: '#94a3b8' },
 })
 
 function Header({ session, folio }: { session: AssessmentSession; folio: string }) {
   const dt = new Date(session.completedAt ?? session.startedAt)
   return (
-    <View style={styles.headerRow}>
+    <View style={styles.headerRow} fixed>
       <View>
         <Text style={styles.brand}>VulneraCheck</Text>
-        <Text style={styles.brandSub}>Informe de Perfil de Vulnerabilidad y Controles de Mitigación de APP Fraud</Text>
+        <Text style={styles.brandSub}>
+          Informe de perfil de vulnerabilidad frente a estafas en servicios financieros digitales
+        </Text>
       </View>
       <View style={styles.metaBox}>
         <Text style={styles.metaLine}>Folio: {folio}</Text>
@@ -72,6 +84,14 @@ function Td({ children, flex }: { children: React.ReactNode; flex?: number }) {
   return <Text style={[styles.td, { flex: flex ?? 1 }]}>{children}</Text>
 }
 
+function LevelBadge({ level }: { level: RiskLevel }) {
+  return (
+    <View style={[styles.badge, { backgroundColor: LEVEL_COLOR[level] }]}>
+      <Text style={styles.badgeText}>{LEVEL_LABEL[level]}</Text>
+    </View>
+  )
+}
+
 export function VulneraCheckReportDocument({
   session,
   result,
@@ -82,111 +102,64 @@ export function VulneraCheckReportDocument({
   history: HistoryEntry[]
 }) {
   const folio = session.sessionId.slice(0, 8).toUpperCase()
-  const breakdown = buildModuleBreakdown(session, result)
   const diagnosis = buildDiagnosisSentence(result)
-  const controls = deriveControls(result)
+  const orientaciones = buildOrientaciones(result)
+  const senales = buildSenales(session)
 
   return (
     <Document title={`VulneraCheck_Informe_${folio}`}>
-      {/* ---------- Página 1 ---------- */}
+      {/* ---------- Página 1: resultados ---------- */}
       <Page size="A4" style={styles.page}>
         <Header session={session} folio={folio} />
         <View style={styles.hr} />
 
-        <Text style={styles.sectionTitle}>Resumen Ejecutivo</Text>
+        <Text style={styles.sectionTitle}>Resumen</Text>
         <View style={styles.scoreCard}>
           <View>
-            <Text style={styles.scoreNumber}>{result.totalScore}</Text>
-            <Text style={styles.scoreLabel}>Score total (0–100)</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={[styles.badge, { backgroundColor: RISK_COLOR[result.riskTier] }]}>
-              <Text style={styles.badgeText}>{RISK_LABEL[result.riskTier]}</Text>
-            </View>
-            <Text style={styles.diagnosisText}>{diagnosis}</Text>
-            <Text style={{ fontSize: 7, color: '#94a3b8', marginTop: 6 }}>
-              Nivel 1 (Perfil Conductual, medido): {result.nivel1.compositeScore}/100 · Nivel 2 ({result.nivel2Label}): {result.nivel2SimulatedScore}/100
+            <Text style={styles.scoreNumber}>{result.totalRawScore}</Text>
+            <Text style={styles.scoreLabel}>
+              Puntaje total ({result.totalMinScore}–{result.totalMaxScore})
             </Text>
           </View>
+          <View style={{ flex: 1 }}>
+            <View style={[styles.badge, { backgroundColor: LEVEL_COLOR[result.level] }]}>
+              <Text style={styles.badgeText}>{VULNERABILITY_LABEL[result.level].toUpperCase()}</Text>
+            </View>
+            <Text style={styles.diagnosisText}>{diagnosis}</Text>
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Desglose de Resultados por Módulo</Text>
+        <Text style={styles.sectionTitle}>Resultados por dimensión</Text>
         <View style={styles.table}>
           <View style={styles.tHeadRow}>
-            <Th flex={2.2}>Módulo</Th>
-            <Th flex={1}>Score</Th>
-            <Th flex={3}>Indicadores clave</Th>
+            <Th flex={2}>Dimensión</Th>
+            <Th flex={0.9}>Puntaje</Th>
+            <Th flex={0.8}>Nivel</Th>
+            <Th flex={3.3}>Indicadores evaluados</Th>
           </View>
-          <View style={styles.tRow}>
-            <Td flex={2.2}>1. Autorreporte / Contexto</Td>
-            <Td flex={1}>{breakdown.module1.score}/100</Td>
-            <Td flex={3}>
-              Brecha de sobreconfianza: {breakdown.module1.overconfidenceGapPct} pp · Educación financiera:{' '}
-              {breakdown.module1.objectiveCorrectCount}/{breakdown.module1.objectiveTotal} correctas ·{' '}
-              {breakdown.module1.recentVictim ? 'víctima reciente reportada' : 'sin victimización reciente'}
-            </Td>
-          </View>
-          <View style={styles.tRowAlt}>
-            <Td flex={2.2}>2. Sugestionabilidad (Micro-GSS)</Td>
-            <Td flex={1}>{breakdown.module2.score}/100</Td>
-            <Td flex={3}>
-              Yield: {breakdown.module2.yieldPct}% · Shift (bajo presión): {breakdown.module2.shiftPct}% · n=
-              {breakdown.module2.trialCount} preguntas
-            </Td>
-          </View>
-          <View style={styles.tRow}>
-            <Td flex={2.2}>3. Escenarios Situacionales</Td>
-            <Td flex={1}>{breakdown.module3.score}/100</Td>
-            <Td flex={3}>
-              Acierto global: {breakdown.module3.accuracyPct}% · Latencia media: {breakdown.module3.avgLatencyMs} ms
-            </Td>
-          </View>
-          {breakdown.module3.byType.map((t, i) => (
-            <View key={t.label} style={i % 2 === 0 ? styles.tRowAlt : styles.tRow}>
-              <Td flex={2.2}>   · {t.label}</Td>
-              <Td flex={1}>{t.correct}/{t.total}</Td>
-              <Td flex={3}>Latencia media: {t.avgLatencyMs} ms</Td>
-            </View>
-          ))}
-          <View style={styles.tRow}>
-            <Td flex={2.2}>4. Control Inhibitorio (Go/No-Go)</Td>
-            <Td flex={1}>{breakdown.module4.score}/100</Td>
-            <Td flex={3}>
-              Errores de comisión: {breakdown.module4.commissionErrorPct}% · Errores de omisión:{' '}
-              {breakdown.module4.omissionErrorPct}% · TR medio (Go correcto): {breakdown.module4.avgReactionTimeMs} ms
-            </Td>
-          </View>
+          {result.dimensions.map((d, i) => {
+            const def = dimensionDefinition(d.dimension)
+            return (
+              <View key={d.dimension} style={i % 2 === 0 ? styles.tRow : styles.tRowAlt}>
+                <Td flex={2}>
+                  {def.code} · {d.label}
+                </Td>
+                <Td flex={0.9}>
+                  {d.rawScore}/{d.maxScore}
+                </Td>
+                <Td flex={0.8}>{LEVEL_LABEL[d.level]}</Td>
+                <Td flex={3.3}>{def.indicators.map((ind) => ind.text).join(' · ')}</Td>
+              </View>
+            )
+          })}
         </View>
-
-        <Text style={styles.footer}>
-          VulneraCheck — Instrumento de investigación académica. Score pentafactorial pre-calibrado por literatura, no
-          validado empíricamente aún (ver nota metodológica, página 2).
+        <Text style={{ fontSize: 7, color: '#64748b', marginTop: 4 }}>
+          Cada dimensión suma 8 afirmaciones en escala 1–5 (los ítems inversos se invierten). Niveles por
+          intervalos iguales del rango: bajo 8–18, medio 19–29, alto 30–40. Total: bajo 40–93, medio 94–146,
+          alto 147–200.
         </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-      </Page>
 
-      {/* ---------- Página 2 ---------- */}
-      <Page size="A4" style={styles.page}>
-        <Header session={session} folio={folio} />
-        <View style={styles.hr} />
-
-        <Text style={styles.sectionTitle}>Matriz de Controles Mitigantes para APP Fraud</Text>
-        <View style={styles.table}>
-          <View style={styles.tHeadRow}>
-            <Th flex={1.4}>Categoría</Th>
-            <Th flex={2.6}>Acción específica</Th>
-            <Th flex={2.6}>Justificación técnica</Th>
-          </View>
-          {controls.map((c, i) => (
-            <View key={i} style={i % 2 === 0 ? styles.tRow : styles.tRowAlt}>
-              <Td flex={1.4}>{c.category}</Td>
-              <Td flex={2.6}>{c.action}</Td>
-              <Td flex={2.6}>{c.justification}</Td>
-            </View>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>Evolución Histórica</Text>
+        <Text style={styles.sectionTitle}>Evolución histórica</Text>
         {history.length <= 1 ? (
           <Text style={{ fontSize: 8, color: '#64748b' }}>
             Esta es la primera evaluación registrada en este dispositivo para el token {session.tokenId}.
@@ -195,18 +168,20 @@ export function VulneraCheckReportDocument({
           <View style={styles.table}>
             <View style={styles.tHeadRow}>
               <Th flex={1.5}>Fecha</Th>
-              <Th flex={1}>Score</Th>
-              <Th flex={1.2}>Clasificación</Th>
+              <Th flex={1}>Puntaje</Th>
+              <Th flex={1.2}>Nivel</Th>
               <Th flex={1}>Variación</Th>
             </View>
             {history.map((h, i) => {
               const prev = history[i + 1]
-              const delta = prev ? h.totalScore - prev.totalScore : null
+              const delta = prev ? h.totalRawScore - prev.totalRawScore : null
               return (
                 <View key={h.sessionId} style={i % 2 === 0 ? styles.tRow : styles.tRowAlt}>
                   <Td flex={1.5}>{new Date(h.completedAt).toLocaleDateString('es-PY')}</Td>
-                  <Td flex={1}>{h.totalScore}/100</Td>
-                  <Td flex={1.2}>{RISK_LABEL[h.riskTier]}</Td>
+                  <Td flex={1}>
+                    {h.totalRawScore}/{h.totalMaxScore}
+                  </Td>
+                  <Td flex={1.2}>{LEVEL_LABEL[h.level]}</Td>
                   <Td flex={1}>{delta === null ? '—' : delta > 0 ? `+${delta}` : `${delta}`}</Td>
                 </View>
               )
@@ -214,21 +189,61 @@ export function VulneraCheckReportDocument({
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Declaración de Conformidad</Text>
-        <Text style={{ fontSize: 8, color: '#334155', lineHeight: 1.5 }}>
-          Este informe fue generado automáticamente a partir de las respuestas registradas en la sesión identificada
-          por el folio {folio}. Los datos se procesan de forma anónima, vinculados únicamente a un token de
-          participación, con fines exclusivamente académicos y de investigación sobre mitigación del Fraude de Pagos
-          Autorizados (APP). El tratamiento de los datos observa los principios de minimización y confidencialidad
-          aplicables bajo la normativa de protección de datos personales vigente. Este documento no constituye
-          asesoramiento legal ni una decisión automatizada definitiva sobre el cliente evaluado.
+        <Text style={styles.footer} fixed>
+          VulneraCheck — Instrumento de investigación académica. Puntos de corte teóricos; validación de contenido
+          por juicio de expertos (Boateng et al., 2018).
         </Text>
+        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+      </Page>
 
-        <Text style={styles.footer}>
-          Documento generado por VulneraCheck el {new Date(result.generatedAt).toLocaleString('es-PY')}. Confidencial
-          — uso interno / académico.
+      {/* ---------- Página 2: orientaciones preventivas ---------- */}
+      <Page size="A4" style={styles.page}>
+        <Header session={session} folio={folio} />
+        <View style={styles.hr} />
+
+        <Text style={styles.sectionTitle}>Orientaciones preventivas personalizadas</Text>
+        {orientaciones.map((o) => (
+          <View key={o.dimension} style={styles.orientBlock} wrap={false}>
+            <View style={styles.orientHead}>
+              <Text style={styles.orientTitle}>{o.label}</Text>
+              <LevelBadge level={o.level} />
+            </View>
+            <Text style={styles.orientSummary}>{o.summary}</Text>
+            {o.pautas.map((p) => (
+              <Text key={p} style={styles.bullet}>
+                • {p}
+              </Text>
+            ))}
+            {senales[o.dimension].length > 0 && (
+              <>
+                <Text style={[styles.senal, { marginTop: 3, fontFamily: 'Helvetica-Bold' }]}>
+                  Situaciones respondidas de forma vulnerable:
+                </Text>
+                {senales[o.dimension].map((s) => (
+                  <Text key={s.item.id} style={styles.senal}>
+                    – «{s.item.text}» — respondiste: {s.answerLabel}
+                  </Text>
+                ))}
+              </>
+            )}
+          </View>
+        ))}
+
+        <View wrap={false}>
+        <Text style={styles.sectionTitle}>Nota metodológica y privacidad</Text>
+        <Text style={{ fontSize: 8, color: '#334155', lineHeight: 1.5 }}>
+          Este informe se generó localmente en el dispositivo a partir de las respuestas de la sesión con folio {folio},
+          vinculada solo a un token de participación anónimo. No se registran nombres, números de cédula, claves ni
+          datos bancarios. El perfil describe puntos débiles frente a tácticas de ingeniería social; no predice con
+          certeza si una persona será víctima de una estafa ni reemplaza las medidas de seguridad de su banco. Uso
+          exclusivamente académico.
         </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </View>
+
+        <Text style={styles.footer} fixed>
+          Documento generado por VulneraCheck el {new Date(result.generatedAt).toLocaleString('es-PY')}.
+        </Text>
+        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
     </Document>
   )

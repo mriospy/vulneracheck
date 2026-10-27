@@ -1,56 +1,19 @@
-// Tipos centrales del instrumento de evaluación VulneraCheck.
-// Nivel 1 = Perfil de Vulnerabilidad Conductual (60% del score total, medido en esta PWA).
-// Nivel 2 = Perfil Transaccional y Entorno Técnico (40%, simulado vía webhook al Core Bancario).
+// Tipos centrales del instrumento VulneraCheck: Escala de Vulnerabilidad
+// Frente a Estafas en Servicios Financieros Digitales de Entidades Bancarias.
+// Escala Likert 1-5, 5 dimensiones, ítems directos e inversos (ver
+// lib/item-banks.ts). Construida siguiendo Boateng et al. (2018).
 
-export type ScenarioChoice = 'ignorar' | 'verificar' | 'responder' | 'llamar'
+export type DimensionKey =
+  | 'urgencia'
+  | 'autoridad'
+  | 'reciprocidad'
+  | 'conformidad'
+  | 'alfabetizacion'
 
-export interface TimedResponse {
+export interface ScaleResponse {
   itemId: string
+  value: number // 1-5, tal como lo marcó el participante (antes de invertir)
   latencyMs: number
-}
-
-export interface LikertResponse extends TimedResponse {
-  value: number // escala 1-5
-}
-
-export interface TipiResponse extends LikertResponse {
-  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness'
-  reverseScored: boolean
-}
-
-export interface FinancialObjectiveResponse extends TimedResponse {
-  selectedOptionId: string
-  correct: boolean
-}
-
-export interface ContextResponse extends TimedResponse {
-  value: number | boolean
-}
-
-export interface GssTrialResult {
-  scenarioId: string
-  questionId: string
-  initialAnswer: 'si' | 'no'
-  initialLatencyMs: number
-  finalAnswer: 'si' | 'no'
-  finalLatencyMs: number
-  yielded: boolean
-  shifted: boolean
-}
-
-export interface ScenarioResult {
-  scenarioId: string
-  choice: ScenarioChoice
-  correct: boolean
-  latencyMs: number
-}
-
-export interface GoNoGoTrial {
-  trialIndex: number
-  type: 'go' | 'nogo'
-  responded: boolean
-  correct: boolean
-  reactionTimeMs: number | null
 }
 
 export interface AssessmentSession {
@@ -59,42 +22,32 @@ export interface AssessmentSession {
   consentedAt: string
   startedAt: string
   completedAt: string | null
-  tipi: TipiResponse[]
-  financialObjective: FinancialObjectiveResponse[]
-  financialConfidence: LikertResponse | null
-  context: ContextResponse[]
-  gss: GssTrialResult[]
-  scenarios: ScenarioResult[]
-  goNoGo: GoNoGoTrial[]
+  /** Orden en que se presentaron los ítems en esta sesión. */
+  itemOrder: string[]
+  responses: ScaleResponse[]
 }
 
-export type FactorKey =
-  | 'personalidad'
-  | 'vulnerabilidadFinanciera'
-  | 'sugestionabilidad'
-  | 'juicioSituacional'
-  | 'impulsividad'
+export type RiskLevel = 'bajo' | 'medio' | 'alto'
 
-export interface FactorScore {
-  factor: FactorKey
+export interface DimensionScore {
+  dimension: DimensionKey
   label: string
-  score: number // 0-100, mayor = mayor vulnerabilidad
-  weight: number // ponderación dentro del Nivel 1
-  description: string
+  /** Suma de puntajes (inversos ya invertidos), mayor = mayor vulnerabilidad. */
+  rawScore: number
+  minScore: number
+  maxScore: number
+  /** rawScore normalizado a 0-100, solo para comparar dimensiones y para la plataforma. */
+  normalizedScore: number
+  level: RiskLevel
+  itemCount: number
 }
-
-export interface Nivel1Result {
-  factors: FactorScore[]
-  compositeScore: number // 0-100
-}
-
-export type RiskTier = 'bajo' | 'moderado' | 'alto' | 'critico'
 
 export interface AssessmentResult {
-  nivel1: Nivel1Result
-  nivel2SimulatedScore: number
-  nivel2Label: string
-  totalScore: number
-  riskTier: RiskTier
+  dimensions: DimensionScore[]
+  totalRawScore: number
+  totalMinScore: number
+  totalMaxScore: number
+  totalNormalizedScore: number
+  level: RiskLevel
   generatedAt: string
 }

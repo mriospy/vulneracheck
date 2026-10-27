@@ -3,7 +3,7 @@ import type { Context, Config } from '@netlify/functions'
 
 interface SubmitPayload {
   session: { sessionId?: unknown; tokenId?: unknown }
-  result: { totalScore?: unknown }
+  result: { totalRawScore?: unknown }
 }
 
 function isValidPayload(body: unknown): body is SubmitPayload {
@@ -16,7 +16,7 @@ function isValidPayload(body: unknown): body is SubmitPayload {
     typeof session.sessionId === 'string' &&
     typeof session.tokenId === 'string' &&
     !!result &&
-    typeof result.totalScore === 'number'
+    typeof result.totalRawScore === 'number'
   )
 }
 
