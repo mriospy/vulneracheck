@@ -40,6 +40,8 @@ export interface DimensionScore {
   normalizedScore: number
   level: RiskLevel
   itemCount: number
+  /** Suma parcial por contexto de los ítems (4 + 4 en la escala mixta). */
+  rawByContext: { cotidiano: number; bancario: number }
 }
 
 export interface AssessmentResult {

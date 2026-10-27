@@ -53,10 +53,11 @@ export function ResultsPage() {
           <CardTitle className="text-sm">¿Qué evaluaban las afirmaciones?</CardTitle>
         </CardHeader>
         <CardContent className="text-sm leading-relaxed text-muted-foreground">
-          Las situaciones que respondiste reproducen, sin decirlo, las tácticas de ingeniería social
-          más usadas en estafas bancarias: mensajes que apuran, llamadas de quien dice ser del banco,
-          favores o beneficios a cambio de datos, recomendaciones de grupos y redes, y prácticas de
-          uso de la banca digital. Cada respuesta indica qué tan expuesto/a estás a cada una.
+          Las afirmaciones medían, sin decirlo, tu sensibilidad a las tácticas de ingeniería social
+          más usadas en estafas bancarias: la presión del tiempo, la autoridad de quien dice ser del
+          banco, los favores o beneficios a cambio de datos, la influencia de grupos y redes, y tus
+          prácticas en el uso de la banca digital. La mitad hablaba de tu vida cotidiana, porque
+          estas tácticas aprovechan las mismas tendencias que mostramos todos los días.
         </CardContent>
       </Card>
 

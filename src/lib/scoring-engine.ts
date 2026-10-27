@@ -40,10 +40,13 @@ export function computeDimensionScores(session: AssessmentSession): DimensionSco
   return DIMENSIONS.map((dim) => {
     let rawScore = 0
     let itemCount = 0
+    const rawByContext = { cotidiano: 0, bancario: 0 }
     for (const r of session.responses) {
       const item = ITEM_BY_ID.get(r.itemId)
       if (!item || item.dimension !== dim.key) continue
-      rawScore += adjustedValue(item, r.value)
+      const adjusted = adjustedValue(item, r.value)
+      rawScore += adjusted
+      rawByContext[item.context] += adjusted
       itemCount += 1
     }
     const minScore = itemCount
@@ -57,6 +60,7 @@ export function computeDimensionScores(session: AssessmentSession): DimensionSco
       normalizedScore: toNormalized(rawScore, minScore, maxScore),
       level: levelFor(rawScore, minScore, maxScore),
       itemCount,
+      rawByContext,
     }
   })
 }
