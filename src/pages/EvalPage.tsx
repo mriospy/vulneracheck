@@ -23,13 +23,13 @@ export function EvalPage() {
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col gap-5 p-5">
       <div className="text-xs font-medium text-muted-foreground">
-        Escala de Vulnerabilidad frente a Estafas en Servicios Financieros Digitales
+        Hábitos en el uso de servicios financieros digitales
       </div>
 
       {isSubmitting ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Calculando tu perfil de vulnerabilidad…</p>
+          <p className="text-sm text-muted-foreground">Procesando tus respuestas…</p>
         </div>
       ) : (
         <ModuleEscala onComplete={handleComplete} />

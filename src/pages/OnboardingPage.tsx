@@ -55,8 +55,7 @@ export function OnboardingPage() {
         </div>
         <h1 className="text-2xl font-bold">VulneraCheck</h1>
         <p className="text-sm text-muted-foreground">
-          Escala de vulnerabilidad frente a estafas por ingeniería social en servicios financieros
-          digitales de entidades bancarias.
+          Cuestionario sobre hábitos en el uso de servicios financieros digitales.
         </p>
       </div>
 
@@ -126,10 +125,13 @@ export function OnboardingPage() {
             <DialogDescription asChild>
               <div className="mt-2 flex max-h-72 flex-col gap-3 overflow-y-auto text-left text-sm">
                 <p>
-                  Esta evaluación forma parte de una tesis de grado sobre la mitigación de estafas
-                  basadas en ingeniería social en servicios financieros digitales de entidades
-                  bancarias. Está dirigida a personas mayores de 18 años. Tu participación es
-                  voluntaria y anónima.
+                  Este cuestionario forma parte de una tesis de grado sobre el uso de servicios
+                  financieros digitales de entidades bancarias. Está dirigido a personas mayores de
+                  18 años. Tu participación es voluntaria y anónima.
+                </p>
+                <p>
+                  Para no influir en tus respuestas, el objetivo específico de cada afirmación se
+                  explica al finalizar, junto con tu resultado y recomendaciones personalizadas.
                 </p>
                 <p>
                   Se registrarán tus respuestas a la escala y el tiempo que tardás en cada una. No se

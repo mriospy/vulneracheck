@@ -47,7 +47,8 @@ export function ModuleEscala({ onComplete }: { onComplete: () => void }) {
       <Card>
         <CardHeader>
           <CardDescription>
-            Indicá qué tan de acuerdo estás con cada afirmación, pensando en cómo actuarías realmente.
+            Indicá qué tan de acuerdo estás con cada afirmación. No hay respuestas correctas ni
+            incorrectas: respondé según lo que realmente hacés o harías.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

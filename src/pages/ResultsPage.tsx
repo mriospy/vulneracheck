@@ -50,6 +50,18 @@ export function ResultsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-sm">¿Qué evaluaban las afirmaciones?</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm leading-relaxed text-muted-foreground">
+          Las situaciones que respondiste reproducen, sin decirlo, las tácticas de ingeniería social
+          más usadas en estafas bancarias: mensajes que apuran, llamadas de quien dice ser del banco,
+          favores o beneficios a cambio de datos, recomendaciones de grupos y redes, y prácticas de
+          uso de la banca digital. Cada respuesta indica qué tan expuesto/a estás a cada una.
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-sm">Resultado por dimensión</CardTitle>
           <CardDescription>
             Suma de tus respuestas en cada dimensión. Mayor puntaje = mayor vulnerabilidad.
