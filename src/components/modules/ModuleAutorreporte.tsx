@@ -6,6 +6,7 @@ import { useAssessmentStore } from '@/store/assessment-store'
 import { nowMs, elapsedSince, shuffle } from '@/lib/metrics-collector'
 import {
   TIPI_ITEMS,
+  TIPI_DECOY_ITEMS,
   FINANCIAL_OBJECTIVE_ITEMS,
   CORE_CONTEXT_ITEMS,
   EXPLORATORY_CONTEXT_ITEMS,
@@ -29,7 +30,10 @@ export function ModuleAutorreporte({ onComplete }: { onComplete: () => void }) {
   const addContextResponse = useAssessmentStore((s) => s.addContextResponse)
 
   const steps = useMemo<Step[]>(() => {
-    const tipiSteps: Step[] = shuffle(TIPI_ITEMS).map((item) => ({ kind: 'tipi', item }))
+    const tipiSteps: Step[] = shuffle([...TIPI_ITEMS, ...TIPI_DECOY_ITEMS]).map((item) => ({
+      kind: 'tipi',
+      item,
+    }))
     const financialSteps: Step[] = shuffle(FINANCIAL_OBJECTIVE_ITEMS).map((item) => ({
       kind: 'financial',
       item,

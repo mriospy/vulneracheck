@@ -1,5 +1,6 @@
 import type { AssessmentResult, AssessmentSession } from '@/types/assessment'
-import { SCENARIO_MOCKS } from '@/lib/item-banks'
+import { SCENARIO_MOCKS, GO_NO_GO_SUBTESTS } from '@/lib/item-banks'
+import { scoreGoNoGoSubTest } from '@/lib/scoring-engine'
 
 // Textos alineados a los términos usados en el informe (Vishing, Smishing,
 // Quishing, Control Remoto) en vez de los ids internos de item-banks.ts.
@@ -40,11 +41,20 @@ export interface Module3Breakdown {
   byType: ScenarioTypeStat[]
 }
 
+export interface GoNoGoSubTestStat {
+  label: string
+  score: number
+  commissionErrorPct: number
+  omissionErrorPct: number
+  avgReactionTimeMs: number
+}
+
 export interface Module4Breakdown {
   score: number
   commissionErrorPct: number
   omissionErrorPct: number
   avgReactionTimeMs: number
+  bySubTest: GoNoGoSubTestStat[]
 }
 
 export interface ReportModuleData {
@@ -120,6 +130,24 @@ export function buildModuleBreakdown(
   const noGoTrials = session.goNoGo.filter((t) => t.type === 'nogo')
   const commissionErrors = noGoTrials.filter((t) => t.responded).length
   const omissionErrors = goTrials.filter((t) => !t.responded).length
+
+  const bySubTest: GoNoGoSubTestStat[] = GO_NO_GO_SUBTESTS.filter((sub) =>
+    session.goNoGo.some((t) => t.subTest === sub.key),
+  ).map((sub) => {
+    const trials = session.goNoGo.filter((t) => t.subTest === sub.key)
+    const go = trials.filter((t) => t.type === 'go')
+    const noGo = trials.filter((t) => t.type === 'nogo')
+    const commission = noGo.filter((t) => t.responded).length
+    const omission = go.filter((t) => !t.responded).length
+    return {
+      label: sub.label,
+      score: scoreGoNoGoSubTest(trials),
+      commissionErrorPct: noGo.length > 0 ? Math.round((commission / noGo.length) * 100) : 0,
+      omissionErrorPct: go.length > 0 ? Math.round((omission / go.length) * 100) : 0,
+      avgReactionTimeMs: avg(go.filter((t) => t.reactionTimeMs !== null).map((t) => t.reactionTimeMs as number)),
+    }
+  })
+
   const module4: Module4Breakdown = {
     score: factorScore('impulsividad'),
     commissionErrorPct: noGoTrials.length > 0 ? Math.round((commissionErrors / noGoTrials.length) * 100) : 0,
@@ -127,6 +155,7 @@ export function buildModuleBreakdown(
     avgReactionTimeMs: avg(
       goTrials.filter((t) => t.reactionTimeMs !== null).map((t) => t.reactionTimeMs as number),
     ),
+    bySubTest,
   }
 
   return { module1, module2, module3, module4 }

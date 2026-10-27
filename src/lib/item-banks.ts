@@ -2,10 +2,12 @@
 // mínimo necesario por sesión: el módulo selecciona un subconjunto aleatorio
 // (ver metrics-collector#shuffle) para reducir el efecto de memorización.
 
+import type { GoNoGoSubTestKey } from '@/types/assessment'
+
 export interface TipiItem {
   id: string
   text: string
-  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness'
+  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness' | 'decoy'
   reverseScored: boolean
 }
 
@@ -22,6 +24,21 @@ export const TIPI_ITEMS: TipiItem[] = [
   { id: 'tipi_8', text: 'Desorganizado, descuidado', trait: 'conscientiousness', reverseScored: true },
   { id: 'tipi_9', text: 'Calmado, emocionalmente estable', trait: 'stability', reverseScored: false },
   { id: 'tipi_10', text: 'Convencional, poco creativo', trait: 'openness', reverseScored: true },
+]
+
+// Ítems señuelo: mismo formato visual y misma escala Likert que TIPI_ITEMS,
+// mezclados al azar entre ellos en ModuleAutorreporte, pero fuera de este
+// array — scorePersonalidad() busca el ítem por id en TIPI_ITEMS y descarta
+// silenciosamente lo que no encuentra, así que estos nunca puntúan. Su único
+// propósito es diluir el patrón reconocible "5 rasgos x 2 ítems" del TIPI
+// real, para que la persona no pueda inferir qué se está midiendo mirando
+// la secuencia de preguntas.
+export const TIPI_DECOY_ITEMS: TipiItem[] = [
+  { id: 'tipi_decoy_1', text: 'Puntual, organizado/a con el tiempo', trait: 'decoy', reverseScored: false },
+  { id: 'tipi_decoy_2', text: 'Curioso/a, le gusta aprender cosas nuevas', trait: 'decoy', reverseScored: false },
+  { id: 'tipi_decoy_3', text: 'Optimista, ve el lado positivo de las cosas', trait: 'decoy', reverseScored: false },
+  { id: 'tipi_decoy_4', text: 'Detallista, presta atención a los pequeños detalles', trait: 'decoy', reverseScored: false },
+  { id: 'tipi_decoy_5', text: 'Sociable, disfruta conocer gente nueva', trait: 'decoy', reverseScored: false },
 ]
 
 export interface FinancialObjectiveItem {
@@ -304,9 +321,74 @@ export interface GoNoGoConfig {
   responseWindowMs: number
 }
 
+// 10 ensayos por bloque × 4 sub-pruebas = 40 ensayos totales (antes 80).
+// Se mantienen las 4 sub-pruebas para TODOS los evaluados — reducir a una
+// sola al azar por evaluación rompería la comparabilidad de scores entre
+// personas/instituciones, que es justo lo que el resto de la plataforma
+// necesita para rankear y comparar.
 export const GO_NO_GO_CONFIG: GoNoGoConfig = {
-  totalTrials: 20,
+  totalTrials: 10,
   goRatio: 0.7,
   stimulusIntervalMsRange: [900, 1500],
   responseWindowMs: 800,
 }
+
+// --- Sub-pruebas de tipo Go/No-Go ------------------------------------------
+// 4 variantes del mismo paradigma de inhibición (misma cantidad de ensayos y
+// timing que GO_NO_GO_CONFIG cada una), cada una aislando un canal de
+// estímulo distinto para reducir el riesgo de que el score solo refleje
+// aprendizaje de una asociación color-específica:
+//  1. colorClasico:   verde=go / rojo=no-go (la prueba original)
+//  2. formaNeutra:    círculo=go / cuadrado=no-go, mismo color neutro
+//  3. semantico:      palabra "SÍ"=go / "NO"=no-go, procesamiento léxico
+//  4. reglaInvertida: rojo=go / verde=no-go, override de la asociación
+//                     "verde=avanzar" — relevante para inhibir el impulso
+//                     de "tocar el botón" ante una alerta que en realidad
+//                     debería frenar al usuario.
+export interface GoNoGoSubTestConfig {
+  key: GoNoGoSubTestKey
+  label: string
+  instructions: string
+  stimulusKind: 'shape' | 'text'
+  go: { text: string; className: string }
+  noGo: { text: string; className: string }
+}
+
+export const GO_NO_GO_SUBTESTS: GoNoGoSubTestConfig[] = [
+  {
+    key: 'colorClasico',
+    label: 'Colores',
+    instructions:
+      'Cuando aparezca un círculo verde, tocalo lo más rápido posible. Cuando aparezca un círculo rojo, no lo toques.',
+    stimulusKind: 'shape',
+    go: { text: '', className: 'rounded-full bg-emerald-500' },
+    noGo: { text: '', className: 'rounded-full bg-red-500' },
+  },
+  {
+    key: 'formaNeutra',
+    label: 'Formas',
+    instructions:
+      'Ahora sin colores: si aparece un círculo, tocalo lo más rápido posible. Si aparece un cuadrado, no lo toques.',
+    stimulusKind: 'shape',
+    go: { text: '', className: 'rounded-full bg-slate-500' },
+    noGo: { text: '', className: 'rounded-none bg-slate-500' },
+  },
+  {
+    key: 'semantico',
+    label: 'Palabras',
+    instructions:
+      'Si aparece la palabra "SÍ", tocá lo más rápido posible. Si aparece la palabra "NO", no toques.',
+    stimulusKind: 'text',
+    go: { text: 'SÍ', className: 'rounded-full bg-emerald-600' },
+    noGo: { text: 'NO', className: 'rounded-full bg-red-600' },
+  },
+  {
+    key: 'reglaInvertida',
+    label: 'Regla invertida',
+    instructions:
+      'Atención, la regla se invierte: ahora el círculo ROJO es para tocar, y el VERDE es para no tocar.',
+    stimulusKind: 'shape',
+    go: { text: '', className: 'rounded-full bg-red-500' },
+    noGo: { text: '', className: 'rounded-full bg-emerald-500' },
+  },
+]

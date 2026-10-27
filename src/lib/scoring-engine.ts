@@ -147,13 +147,16 @@ export function scoreJuicioSituacional(session: AssessmentSession): number {
   return toScore100(0.85 * errorFraction + 0.15 * fastWrongFraction * errorFraction)
 }
 
-// --- Factor 5: Impulsividad (Go/No-Go) --------------------------------------
+// --- Factor 5: Impulsividad (4 sub-pruebas Go/No-Go) ------------------------
 // Los errores de comisión (responder en un ensayo No-Go) son el indicador
 // principal de falta de control inhibitorio. Las omisiones en ensayos Go
-// pesan menos (pueden reflejar distracción, no impulsividad).
-export function scoreImpulsividad(session: AssessmentSession): number {
-  const goTrials = session.goNoGo.filter((t) => t.type === 'go')
-  const noGoTrials = session.goNoGo.filter((t) => t.type === 'nogo')
+// pesan menos (pueden reflejar distracción, no impulsividad). Cada una de
+// las 4 sub-pruebas (colorClasico/formaNeutra/semantico/reglaInvertida) se
+// puntúa igual y el factor es el promedio simple entre las que tengan datos
+// — sin pilotaje todavía no hay base para ponderarlas de forma distinta.
+export function scoreGoNoGoSubTest(trials: AssessmentSession['goNoGo']): number {
+  const goTrials = trials.filter((t) => t.type === 'go')
+  const noGoTrials = trials.filter((t) => t.type === 'nogo')
   if (goTrials.length === 0 && noGoTrials.length === 0) return 0
 
   const commissionErrors = noGoTrials.filter((t) => t.responded).length
@@ -163,6 +166,20 @@ export function scoreImpulsividad(session: AssessmentSession): number {
   const omissionFraction = goTrials.length > 0 ? omissionErrors / goTrials.length : 0
 
   return toScore100(0.8 * commissionFraction + 0.2 * omissionFraction)
+}
+
+export function scoreImpulsividad(session: AssessmentSession): number {
+  if (session.goNoGo.length === 0) return 0
+
+  const bySubTest = new Map<string, typeof session.goNoGo>()
+  for (const t of session.goNoGo) {
+    const arr = bySubTest.get(t.subTest) ?? []
+    arr.push(t)
+    bySubTest.set(t.subTest, arr)
+  }
+
+  const subScores = Array.from(bySubTest.values()).map(scoreGoNoGoSubTest)
+  return Math.round(subScores.reduce((a, b) => a + b, 0) / subScores.length)
 }
 
 export function computeNivel1(session: AssessmentSession): Nivel1Result {

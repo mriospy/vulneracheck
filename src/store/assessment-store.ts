@@ -27,6 +27,8 @@ const CURRENT_RESULT_KEY = 'vulneracheck.currentResult.v1'
 interface StoredCompletedResult {
   session: AssessmentSession
   result: AssessmentResult
+  institutionName: string | null
+  institutionLogoUrl: string | null
 }
 
 /**
@@ -35,10 +37,18 @@ interface StoredCompletedResult {
  * uno deliberado tras un fallo de carga de un chunk luego de un
  * redeploy — no borre el resultado ya calculado del participante.
  */
-function saveCurrentResult(session: AssessmentSession, result: AssessmentResult) {
+function saveCurrentResult(
+  session: AssessmentSession,
+  result: AssessmentResult,
+  institutionName: string | null,
+  institutionLogoUrl: string | null,
+) {
   if (typeof sessionStorage === 'undefined') return
   try {
-    sessionStorage.setItem(CURRENT_RESULT_KEY, JSON.stringify({ session, result }))
+    sessionStorage.setItem(
+      CURRENT_RESULT_KEY,
+      JSON.stringify({ session, result, institutionName, institutionLogoUrl }),
+    )
   } catch {
     // almacenamiento no disponible — no bloquea el flujo
   }
@@ -89,8 +99,10 @@ interface AssessmentStore {
   result: AssessmentResult | null
   isSubmitting: boolean
   history: HistoryEntry[]
+  institutionName: string | null
+  institutionLogoUrl: string | null
 
-  startSession: (tokenId: string) => void
+  startSession: (tokenId: string, institutionName?: string | null, institutionLogoUrl?: string | null) => void
   addTipiResponse: (r: TipiResponse) => void
   addFinancialObjectiveResponse: (r: FinancialObjectiveResponse) => void
   setFinancialConfidence: (r: LikertResponse) => void
@@ -115,14 +127,18 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
   result: restored?.result ?? null,
   isSubmitting: false,
   history: getHistory(),
+  institutionName: restored?.institutionName ?? null,
+  institutionLogoUrl: restored?.institutionLogoUrl ?? null,
 
-  startSession: (tokenId) =>
+  startSession: (tokenId, institutionName = null, institutionLogoUrl = null) =>
     set({
       tokenId,
       consented: true,
       session: emptySession(tokenId),
       currentModuleIndex: 0,
       result: null,
+      institutionName,
+      institutionLogoUrl,
     }),
 
   addTipiResponse: (r) =>
@@ -182,7 +198,7 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         riskTier: result.riskTier,
       })
       set({ session: completedSession, result, isSubmitting: false, history })
-      saveCurrentResult(completedSession, result)
+      saveCurrentResult(completedSession, result, get().institutionName, get().institutionLogoUrl)
       void submitAssessmentToResearchStore(completedSession, result)
       void submitAssessmentToPlatform(completedSession, result)
     } catch {
@@ -199,6 +215,8 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       currentModuleIndex: 0,
       result: null,
       isSubmitting: false,
+      institutionName: null,
+      institutionLogoUrl: null,
     })
   },
 }))

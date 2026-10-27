@@ -1,5 +1,5 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
-import type { AssessmentResult, AssessmentSession, RiskTier } from '@/types/assessment'
+import { Document, Page, View, Text, Image, StyleSheet, Svg, Rect, Line, Circle, Polyline } from '@react-pdf/renderer'
+import type { AssessmentResult, AssessmentSession, RiskTier, FactorScore } from '@/types/assessment'
 import { buildModuleBreakdown, buildDiagnosisSentence } from '@/lib/report-data'
 import { deriveControls } from '@/lib/controls-engine'
 import type { HistoryEntry } from '@/lib/history-store'
@@ -46,13 +46,27 @@ const styles = StyleSheet.create({
   pageNumber: { position: 'absolute', bottom: 24, right: 36, fontSize: 7, color: '#94a3b8' },
 })
 
-function Header({ session, folio }: { session: AssessmentSession; folio: string }) {
+function Header({
+  session,
+  folio,
+  institutionName,
+  institutionLogoUrl,
+}: {
+  session: AssessmentSession
+  folio: string
+  institutionName?: string | null
+  institutionLogoUrl?: string | null
+}) {
   const dt = new Date(session.completedAt ?? session.startedAt)
   return (
     <View style={styles.headerRow}>
-      <View>
-        <Text style={styles.brand}>VulneraCheck</Text>
-        <Text style={styles.brandSub}>Informe de Perfil de Vulnerabilidad y Controles de Mitigación de APP Fraud</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {institutionLogoUrl && <Image src={institutionLogoUrl} style={{ width: 28, height: 28, objectFit: 'contain' }} />}
+        <View>
+          <Text style={styles.brand}>VulneraCheck</Text>
+          <Text style={styles.brandSub}>Informe de Perfil de Vulnerabilidad y Controles de Mitigación de APP Fraud</Text>
+          {institutionName && <Text style={styles.brandSub}>Institución: {institutionName}</Text>}
+        </View>
       </View>
       <View style={styles.metaBox}>
         <Text style={styles.metaLine}>Folio: {folio}</Text>
@@ -72,14 +86,180 @@ function Td({ children, flex }: { children: React.ReactNode; flex?: number }) {
   return <Text style={[styles.td, { flex: flex ?? 1 }]}>{children}</Text>
 }
 
+// --- Gráficos del informe (SVG puro + Text posicionado por flexbox, evita
+// el Text con x/y dentro de <Svg> cuyo soporte de fontSize no está
+// documentado con certeza en esta versión de @react-pdf/renderer). ---
+
+const GAUGE_SEGMENTS: { from: number; to: number; color: string }[] = [
+  { from: 0, to: 25, color: '#16a34a' },
+  { from: 25, to: 50, color: '#d97706' },
+  { from: 50, to: 75, color: '#dc2626' },
+  { from: 75, to: 100, color: '#991b1b' },
+]
+
+function ScoreGauge({ score }: { score: number }) {
+  const W = 480
+  const H = 16
+  const svgH = 20
+  const clamped = Math.min(100, Math.max(0, score))
+  const markerX = (clamped / 100) * W
+
+  return (
+    <View style={{ marginTop: 6 }}>
+      <View style={{ position: 'relative' }}>
+        <Svg width={W} height={svgH}>
+          {GAUGE_SEGMENTS.map((s) => (
+            <Rect
+              key={s.from}
+              x={(s.from / 100) * W}
+              y={2}
+              width={((s.to - s.from) / 100) * W}
+              height={H}
+              fill={s.color}
+            />
+          ))}
+          <Line x1={markerX} y1={0} x2={markerX} y2={svgH} stroke="#0f172a" strokeWidth={1.5} />
+        </Svg>
+        <Text
+          style={{
+            position: 'absolute',
+            top: -9,
+            left: Math.max(0, Math.min(W - 16, markerX - 8)),
+            fontSize: 7,
+            fontFamily: 'Helvetica-Bold',
+            color: '#0f172a',
+          }}
+        >
+          {clamped}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+        {[0, 25, 50, 75, 100].map((v) => (
+          <Text key={v} style={{ fontSize: 6, color: '#94a3b8' }}>
+            {v}
+          </Text>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function CompositionBar({ nivel1Score, nivel2Score }: { nivel1Score: number; nivel2Score: number }) {
+  const W = 260
+  const H = 10
+  const c1 = nivel1Score * 0.6
+  const c2 = nivel2Score * 0.4
+  const w1 = (Math.min(100, Math.max(0, c1)) / 100) * W
+  const w2 = (Math.min(100, Math.max(0, c2)) / 100) * W
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Svg width={W} height={H}>
+        <Rect x={0} y={0} width={W} height={H} fill="#e2e8f0" />
+        <Rect x={0} y={0} width={w1} height={H} fill="#0f172a" />
+        <Rect x={w1} y={0} width={w2} height={H} fill="#64748b" />
+      </Svg>
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 3 }}>
+        <Text style={{ fontSize: 6.5, color: '#0f172a' }}>■ Nivel 1 medido (60%): {Math.round(c1)} pts</Text>
+        <Text style={{ fontSize: 6.5, color: '#64748b' }}>■ Nivel 2 simulado (40%): {Math.round(c2)} pts</Text>
+      </View>
+    </View>
+  )
+}
+
+function FactorBarChart({ factors }: { factors: FactorScore[] }) {
+  const chartW = 260
+  const barH = 9
+  const rowH = 17
+  const svgH = factors.length * rowH
+
+  return (
+    <View style={{ flexDirection: 'row', marginTop: 6, alignItems: 'flex-start' }}>
+      <View style={{ width: 150 }}>
+        {factors.map((f) => (
+          <View key={f.factor} style={{ height: rowH, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 7.5, color: '#334155' }}>{f.label}</Text>
+          </View>
+        ))}
+      </View>
+      <Svg width={chartW} height={svgH}>
+        {factors.map((f, i) => (
+          <Rect key={`track-${f.factor}`} x={0} y={i * rowH + (rowH - barH) / 2} width={chartW} height={barH} fill="#e2e8f0" />
+        ))}
+        {factors.map((f, i) => (
+          <Rect
+            key={`value-${f.factor}`}
+            x={0}
+            y={i * rowH + (rowH - barH) / 2}
+            width={(Math.min(100, Math.max(0, f.score)) / 100) * chartW}
+            height={barH}
+            fill="#0f172a"
+          />
+        ))}
+      </Svg>
+      <View style={{ width: 34, marginLeft: 6 }}>
+        {factors.map((f) => (
+          <View key={f.factor} style={{ height: rowH, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold' }}>{f.score}/100</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function HistoryLineChart({ history }: { history: HistoryEntry[] }) {
+  const chronological = [...history].reverse()
+  const W = 480
+  const H = 90
+  const pad = 10
+  const innerW = W - pad * 2
+  const innerH = H - pad * 2
+  const n = chronological.length
+
+  const points = chronological.map((h, i) => {
+    const x = pad + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2)
+    const y = pad + innerH - (Math.min(100, Math.max(0, h.totalScore)) / 100) * innerH
+    return { x, y }
+  })
+  const pointsAttr = points.map((p) => `${p.x},${p.y}`).join(' ')
+
+  return (
+    <View style={{ marginTop: 6 }}>
+      <Svg width={W} height={H}>
+        {[0, 25, 50, 75, 100].map((v) => {
+          const y = pad + innerH - (v / 100) * innerH
+          return <Line key={v} x1={pad} y1={y} x2={W - pad} y2={y} stroke="#e2e8f0" strokeWidth={0.5} />
+        })}
+        <Polyline points={pointsAttr} stroke="#0f172a" strokeWidth={1.5} fill="none" />
+        {points.map((p, i) => (
+          <Circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#0f172a" />
+        ))}
+      </Svg>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+        <Text style={{ fontSize: 6, color: '#94a3b8' }}>
+          {new Date(chronological[0].completedAt).toLocaleDateString('es-PY')}
+        </Text>
+        <Text style={{ fontSize: 6, color: '#94a3b8' }}>
+          {new Date(chronological[n - 1].completedAt).toLocaleDateString('es-PY')}
+        </Text>
+      </View>
+    </View>
+  )
+}
+
 export function VulneraCheckReportDocument({
   session,
   result,
   history,
+  institutionName,
+  institutionLogoUrl,
 }: {
   session: AssessmentSession
   result: AssessmentResult
   history: HistoryEntry[]
+  institutionName?: string | null
+  institutionLogoUrl?: string | null
 }) {
   const folio = session.sessionId.slice(0, 8).toUpperCase()
   const breakdown = buildModuleBreakdown(session, result)
@@ -90,7 +270,7 @@ export function VulneraCheckReportDocument({
     <Document title={`VulneraCheck_Informe_${folio}`}>
       {/* ---------- Página 1 ---------- */}
       <Page size="A4" style={styles.page}>
-        <Header session={session} folio={folio} />
+        <Header session={session} folio={folio} institutionName={institutionName} institutionLogoUrl={institutionLogoUrl} />
         <View style={styles.hr} />
 
         <Text style={styles.sectionTitle}>Resumen Ejecutivo</Text>
@@ -104,11 +284,16 @@ export function VulneraCheckReportDocument({
               <Text style={styles.badgeText}>{RISK_LABEL[result.riskTier]}</Text>
             </View>
             <Text style={styles.diagnosisText}>{diagnosis}</Text>
-            <Text style={{ fontSize: 7, color: '#94a3b8', marginTop: 6 }}>
-              Nivel 1 (Perfil Conductual, medido): {result.nivel1.compositeScore}/100 · Nivel 2 ({result.nivel2Label}): {result.nivel2SimulatedScore}/100
-            </Text>
           </View>
         </View>
+        <ScoreGauge score={result.totalScore} />
+        <Text style={{ fontSize: 7, color: '#94a3b8', marginTop: 8 }}>
+          Composición del score total — cómo se llega a {result.totalScore}/100:
+        </Text>
+        <CompositionBar nivel1Score={result.nivel1.compositeScore} nivel2Score={result.nivel2SimulatedScore} />
+
+        <Text style={styles.sectionTitle}>Perfil por Factor (Modelo Pentafactorial)</Text>
+        <FactorBarChart factors={result.nivel1.factors} />
 
         <Text style={styles.sectionTitle}>Desglose de Resultados por Módulo</Text>
         <View style={styles.table}>
@@ -149,25 +334,34 @@ export function VulneraCheckReportDocument({
             </View>
           ))}
           <View style={styles.tRow}>
-            <Td flex={2.2}>4. Control Inhibitorio (Go/No-Go)</Td>
+            <Td flex={2.2}>4. Control Inhibitorio (Go/No-Go, promedio de 4 sub-pruebas)</Td>
             <Td flex={1}>{breakdown.module4.score}/100</Td>
             <Td flex={3}>
               Errores de comisión: {breakdown.module4.commissionErrorPct}% · Errores de omisión:{' '}
               {breakdown.module4.omissionErrorPct}% · TR medio (Go correcto): {breakdown.module4.avgReactionTimeMs} ms
             </Td>
           </View>
+          {breakdown.module4.bySubTest.map((s, i) => (
+            <View key={s.label} style={i % 2 === 0 ? styles.tRowAlt : styles.tRow}>
+              <Td flex={2.2}>   · {s.label}</Td>
+              <Td flex={1}>{s.score}/100</Td>
+              <Td flex={3}>
+                Comisión: {s.commissionErrorPct}% · Omisión: {s.omissionErrorPct}% · TR medio: {s.avgReactionTimeMs} ms
+              </Td>
+            </View>
+          ))}
         </View>
 
-        <Text style={styles.footer}>
+        <Text style={styles.footer} fixed>
           VulneraCheck — Instrumento de investigación académica. Score pentafactorial pre-calibrado por literatura, no
           validado empíricamente aún (ver nota metodológica, página 2).
         </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        <Text style={styles.pageNumber} fixed render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </Page>
 
       {/* ---------- Página 2 ---------- */}
       <Page size="A4" style={styles.page}>
-        <Header session={session} folio={folio} />
+        <Header session={session} folio={folio} institutionName={institutionName} institutionLogoUrl={institutionLogoUrl} />
         <View style={styles.hr} />
 
         <Text style={styles.sectionTitle}>Matriz de Controles Mitigantes para APP Fraud</Text>
@@ -192,7 +386,9 @@ export function VulneraCheckReportDocument({
             Esta es la primera evaluación registrada en este dispositivo para el token {session.tokenId}.
           </Text>
         ) : (
-          <View style={styles.table}>
+          <>
+            <HistoryLineChart history={history} />
+            <View style={[styles.table, { marginTop: 8 }]}>
             <View style={styles.tHeadRow}>
               <Th flex={1.5}>Fecha</Th>
               <Th flex={1}>Score</Th>
@@ -211,7 +407,8 @@ export function VulneraCheckReportDocument({
                 </View>
               )
             })}
-          </View>
+            </View>
+          </>
         )}
 
         <Text style={styles.sectionTitle}>Declaración de Conformidad</Text>
@@ -224,11 +421,11 @@ export function VulneraCheckReportDocument({
           asesoramiento legal ni una decisión automatizada definitiva sobre el cliente evaluado.
         </Text>
 
-        <Text style={styles.footer}>
+        <Text style={styles.footer} fixed>
           Documento generado por VulneraCheck el {new Date(result.generatedAt).toLocaleString('es-PY')}. Confidencial
           — uso interno / académico.
         </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        <Text style={styles.pageNumber} fixed render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </Page>
     </Document>
   )

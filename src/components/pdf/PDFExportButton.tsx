@@ -14,6 +14,8 @@ export function PDFExportButton() {
   const session = useAssessmentStore((s) => s.session)
   const result = useAssessmentStore((s) => s.result)
   const history = useAssessmentStore((s) => s.history)
+  const institutionName = useAssessmentStore((s) => s.institutionName)
+  const institutionLogoUrl = useAssessmentStore((s) => s.institutionLogoUrl)
 
   const handleDownloadPDF = async () => {
     if (!session || !result) return
@@ -26,7 +28,13 @@ export function PDFExportButton() {
       ])
       const folio = session.sessionId.slice(0, 8).toUpperCase()
       const blob = await pdf(
-        <VulneraCheckReportDocument session={session} result={result} history={history} />,
+        <VulneraCheckReportDocument
+          session={session}
+          result={result}
+          history={history}
+          institutionName={institutionName}
+          institutionLogoUrl={institutionLogoUrl}
+        />,
       ).toBlob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')

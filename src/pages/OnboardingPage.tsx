@@ -43,7 +43,7 @@ export function OnboardingPage() {
       return
     }
 
-    startSession(token.trim())
+    startSession(token.trim(), validation.institutionName, validation.institutionLogoUrl)
     navigate('/eval')
   }
 

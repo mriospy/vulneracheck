@@ -13,8 +13,12 @@ export interface LikertResponse extends TimedResponse {
   value: number // escala 1-5
 }
 
+// 'decoy' = ítem señuelo (ver TIPI_DECOY_ITEMS en item-banks.ts): mismo
+// formato visual que un ítem TIPI real, mezclado al azar entre ellos, pero
+// no puntúa nada — diluye la señal de "esto mide 5 rasgos de personalidad
+// x 2 ítems" para reducir el sesgo de deseabilidad social.
 export interface TipiResponse extends LikertResponse {
-  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness'
+  trait: 'extraversion' | 'agreeableness' | 'conscientiousness' | 'stability' | 'openness' | 'decoy'
   reverseScored: boolean
 }
 
@@ -45,7 +49,13 @@ export interface ScenarioResult {
   latencyMs: number
 }
 
+// Las 4 sub-pruebas de tipo Go/No-Go (la clásica por color + 3 nuevas),
+// cada una con su propio sub-score visible en el reporte. El factor
+// "impulsividad" del modelo pentafactorial es el promedio de las 4.
+export type GoNoGoSubTestKey = 'colorClasico' | 'formaNeutra' | 'semantico' | 'reglaInvertida'
+
 export interface GoNoGoTrial {
+  subTest: GoNoGoSubTestKey
   trialIndex: number
   type: 'go' | 'nogo'
   responded: boolean

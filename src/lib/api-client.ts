@@ -87,6 +87,8 @@ export interface TokenValidation {
   checked: boolean
   valid: boolean
   reason?: string
+  institutionName?: string
+  institutionLogoUrl?: string | null
 }
 
 /**
@@ -99,7 +101,14 @@ export async function validatePlatformToken(tokenId: string): Promise<TokenValid
   try {
     const res = await fetch(`${PLATFORM_URL}/api/public/tokens/${encodeURIComponent(tokenId)}`)
     const data = await res.json().catch(() => ({}))
-    if (res.ok) return { checked: true, valid: Boolean(data.valid) }
+    if (res.ok) {
+      return {
+        checked: true,
+        valid: Boolean(data.valid),
+        institutionName: data.institutionName,
+        institutionLogoUrl: data.institutionLogoUrl ?? null,
+      }
+    }
     return { checked: true, valid: false, reason: data.reason }
   } catch {
     return { checked: false, valid: true }

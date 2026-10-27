@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useAssessmentStore } from '@/store/assessment-store'
 import { nowMs, elapsedSince, shuffle } from '@/lib/metrics-collector'
-import { GO_NO_GO_CONFIG } from '@/lib/item-banks'
+import { GO_NO_GO_CONFIG, GO_NO_GO_SUBTESTS } from '@/lib/item-banks'
 import type { GoNoGoTrial } from '@/types/assessment'
 
 type TrialType = 'go' | 'nogo'
@@ -23,7 +23,13 @@ function buildTrialSequence(): TrialType[] {
 
 export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
   const addGoNoGoTrial = useAssessmentStore((s) => s.addGoNoGoTrial)
-  const sequence = useMemo(() => buildTrialSequence(), [])
+
+  const [blockIndex, setBlockIndex] = useState(0)
+  const block = GO_NO_GO_SUBTESTS[blockIndex]
+  const isLastBlock = blockIndex === GO_NO_GO_SUBTESTS.length - 1
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sequence = useMemo(() => buildTrialSequence(), [blockIndex])
 
   const [phase, setPhase] = useState<Phase>('instrucciones')
   const [trialIndex, setTrialIndex] = useState(0)
@@ -42,12 +48,18 @@ export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
   const recordTrial = (responded: boolean, reactionTimeMs: number | null) => {
     const type = sequence[trialIndex]
     const correct = type === 'go' ? responded : !responded
-    const trial: GoNoGoTrial = { trialIndex, type, responded, correct, reactionTimeMs }
+    const trial: GoNoGoTrial = { subTest: block.key, trialIndex, type, responded, correct, reactionTimeMs }
     addGoNoGoTrial(trial)
 
     if (trialIndex + 1 >= sequence.length) {
-      setPhase('finalizando')
-      setTimeout(onComplete, 400)
+      if (isLastBlock) {
+        setPhase('finalizando')
+        setTimeout(onComplete, 400)
+      } else {
+        setPhase('instrucciones')
+        setTrialIndex(0)
+        setBlockIndex((b) => b + 1)
+      }
     } else {
       setTrialIndex(trialIndex + 1)
       setPhase('blank')
@@ -65,7 +77,7 @@ export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
     }, delay)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, trialIndex])
+  }, [phase, trialIndex, blockIndex])
 
   useEffect(() => {
     if (phase !== 'stimulus') return
@@ -78,7 +90,7 @@ export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
     }, GO_NO_GO_CONFIG.responseWindowMs)
     return clearTimer
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, trialIndex])
+  }, [phase, trialIndex, blockIndex])
 
   const handleTap = () => {
     if (phase !== 'stimulus' || respondedRef.current) return
@@ -87,27 +99,28 @@ export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
     recordTrial(true, elapsedSince(stimulusStartRef.current))
   }
 
-  const startTask = () => setPhase('blank')
+  const startBlock = () => setPhase('blank')
 
   const currentType = sequence[trialIndex]
+  const totalOverallTrials = GO_NO_GO_SUBTESTS.length * sequence.length
+  const overallCompleted = blockIndex * sequence.length + trialIndex
+  const stimulusConfig = currentType === 'go' ? block.go : block.noGo
 
   return (
     <div className="flex flex-col gap-4">
-      <Progress value={(trialIndex / sequence.length) * 100} />
+      <Progress value={(overallCompleted / totalOverallTrials) * 100} />
       <Card>
         <CardHeader>
-          <CardTitle>Módulo 4 · Go / No-Go</CardTitle>
+          <CardTitle>
+            Módulo 4 · Go / No-Go — {block.label} ({blockIndex + 1}/{GO_NO_GO_SUBTESTS.length})
+          </CardTitle>
           <CardDescription>Control inhibitorio bajo presión de tiempo.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
           {phase === 'instrucciones' && (
             <>
-              <p className="text-center text-sm leading-relaxed">
-                Cuando aparezca un círculo <span className="font-semibold text-emerald-600">verde</span>,
-                tocalo lo más rápido posible. Cuando aparezca un círculo{' '}
-                <span className="font-semibold text-red-600">rojo</span>, no lo toques.
-              </p>
-              <Button onClick={startTask}>Comenzar ({GO_NO_GO_CONFIG.totalTrials} ensayos)</Button>
+              <p className="text-center text-sm leading-relaxed">{block.instructions}</p>
+              <Button onClick={startBlock}>Comenzar ({GO_NO_GO_CONFIG.totalTrials} ensayos)</Button>
             </>
           )}
 
@@ -117,14 +130,12 @@ export function ModuleGoNoGo({ onComplete }: { onComplete: () => void }) {
               onClick={handleTap}
               disabled={phase !== 'stimulus'}
               aria-label={phase === 'stimulus' ? currentType : 'esperando'}
-              className={`flex h-40 w-40 items-center justify-center rounded-full transition-colors ${
-                phase === 'stimulus'
-                  ? currentType === 'go'
-                    ? 'bg-emerald-500 active:scale-95'
-                    : 'bg-red-500 active:scale-95'
-                  : 'bg-muted'
+              className={`flex h-40 w-40 items-center justify-center text-3xl font-bold text-white transition-colors ${
+                phase === 'stimulus' ? `${stimulusConfig.className} active:scale-95` : 'rounded-full bg-muted'
               }`}
-            />
+            >
+              {phase === 'stimulus' && block.stimulusKind === 'text' ? stimulusConfig.text : null}
+            </button>
           )}
 
           {phase === 'finalizando' && <p className="text-sm text-muted-foreground">Procesando resultados…</p>}
